@@ -63,10 +63,11 @@ BasicPipelineProgram * pipelineProgram;
 
 GLint h_modelViewMatrix, h_projectionMatrix;
 
-glm::vec3 positions[256 * 256];
-glm::vec4 colors[256 * 256];
+glm::vec3 positions[256*256];
+glm::vec4 colors[256*256];
 
 int renderMode = 1;
+float heightScale = 0.25;
 
 // write a screenshot to the specified filename
 void saveScreenshot(const char * filename)
@@ -131,7 +132,7 @@ void displayFunc()
 
   // bind the VAO
   glBindVertexArray(vaoPoint);
-  glDrawArrays(GL_LINE_STRIP, 0, numVertices);
+  glDrawArrays(GL_POINTS, 0, numVertices);
 
   // unbind the VAO
   glBindVertexArray(0);
@@ -287,8 +288,26 @@ void keyboardFunc(unsigned char key, int x, int y)
       // take a screenshot
       saveScreenshot("screenshot.jpg");
     break;
+	
+	case '1':
+		cout << "You pressed 1" << endl;
+		renderMode = 1;
+	break;
 
+	case '2':
+		cout << "You pressed 2" << endl;
+		renderMode = 2;
+	break;
 
+	case '3':
+		cout << "You pressed 3" << endl;
+		renderMode = 3;
+	break;
+
+	case '4':
+		cout << "You pressed 4" << endl;
+		renderMode = 4;
+	break;
   }
 }
 
@@ -313,15 +332,14 @@ void initScene(int argc, char *argv[])
   {
 	  for (int j = 0; j < imageHeight; j++)
 	  {
-		  float heightScale = 0.25;
 		  float height = heightScale * heightmapImage->getPixel(i, j, 0);
 		  positions[numVertices] = glm::vec3(i, height, -j);
 		  colors[numVertices] = glm::vec4(1, 1, 1, 1);
 		  numVertices++;
 	  }
   }
-
-	glGenBuffers(1, &vboPoint);
+  
+  glGenBuffers(1, &vboPoint);
   glBindBuffer(GL_ARRAY_BUFFER, vboPoint);
   glBufferData(GL_ARRAY_BUFFER, sizeof(positions) + sizeof(colors), nullptr,
                GL_STATIC_DRAW);
