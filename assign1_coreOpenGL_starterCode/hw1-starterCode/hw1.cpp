@@ -69,10 +69,13 @@ glm::vec4 color_white(1, 1, 1, 1);
 int renderMode = 1;
 float heightScale = 0.25;
 
-std::vector<glm::vec3> positions;
 std::vector<glm::vec4> colors;
+std::vector<glm::vec3> positions;
+std::vector<glm::vec4> colors_point;
 std::vector<glm::vec3> positions_line;
 std::vector<glm::vec4> colors_line;
+std::vector<glm::vec3> positions_triangle;
+std::vector<glm::vec4> colors_triangle;
 
 // write a screenshot to the specified filename
 void saveScreenshot(const char * filename)
@@ -145,6 +148,10 @@ void displayFunc()
   case 2:
 	  glBindVertexArray(vaoWireframe);
 	  glDrawArrays(GL_LINES, 0, positions_line.size());
+	  break;
+  case 3:
+	  glBindVertexArray(vaoSolid);
+	  glDrawArrays(GL_TRIANGLES, 0, positions_triangle.size());
 	  break;
   }
 
@@ -347,27 +354,54 @@ void initScene(int argc, char *argv[])
   {
 	  for (int j = 0; j < imageHeight; j++)
 	  {
-		  float height = heightScale * heightmapImage->getPixel(i, j, 0);
+		  float grayscale = heightmapImage->getPixel(i, j, 0);
+		  float height = heightScale * grayscale;
 		  glm::vec3 position = glm::vec3(i, height, -j);
+		  glm::vec4 color(grayscale, grayscale, grayscale, 1);
+		  colors.push_back(color);
 
 		  // point
 		  positions.push_back(position);
-		  colors.push_back(color_white);
+		  colors_point.push_back(color_white);
 
 		  // wireframe
 		  if (i != 0)
 		  {
 			  positions_line.push_back(position);
 			  positions_line.push_back(positions[numVertices - imageHeight]);
-			  colors_line.push_back(color_white);
-			  colors_line.push_back(color_white);
+			  for (int k = 0; k < 2; k++) colors_line.push_back(color_white);
 		  }
 		  if (j != 0)
 		  {
 			  positions_line.push_back(position);
 			  positions_line.push_back(positions[numVertices - 1]);
-			  colors_line.push_back(color_white);
-			  colors_line.push_back(color_white);
+			  for (int k = 0; k < 2; k++) colors_line.push_back(color_white);
+		  }
+
+		  // solid
+		  if (i != 0 && j != 0)
+		  {
+			  glm::vec3 left = positions[numVertices - 1];
+			  glm::vec3 down = positions[numVertices - imageHeight];
+			  glm::vec3 lowerleft = positions[numVertices - imageHeight - 1];
+
+			  glm::vec4 leftColor = colors[numVertices - 1];
+			  glm::vec4 downColor = colors[numVertices - imageHeight];
+			  glm::vec4 lowerleftColor = colors[numVertices - imageHeight - 1];
+
+			  positions_triangle.push_back(position);
+			  positions_triangle.push_back(left);
+			  positions_triangle.push_back(lowerleft);
+			  colors_triangle.push_back(color);
+			  colors_triangle.push_back(leftColor);
+			  colors_triangle.push_back(lowerleftColor);
+
+			  positions_triangle.push_back(position);
+			  positions_triangle.push_back(lowerleft);
+			  positions_triangle.push_back(down);
+			  colors_triangle.push_back(color);
+			  colors_triangle.push_back(lowerleftColor);
+			  colors_triangle.push_back(downColor);
 		  }
 
 		  numVertices++;
@@ -383,7 +417,7 @@ void initScene(int argc, char *argv[])
   glBufferData(GL_ARRAY_BUFFER, positionSize + colorSize, nullptr,
                GL_STATIC_DRAW);
   glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions[0]);
-  glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors[0]);
+  glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors_point[0]);
 
   // wireframe
   size_t positionSize_line = sizeof(glm::vec3) * positions_line.size();
@@ -394,6 +428,16 @@ void initScene(int argc, char *argv[])
 	  GL_STATIC_DRAW);
   glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize_line, &positions_line[0]);
   glBufferSubData(GL_ARRAY_BUFFER, positionSize_line, colorSize_line, &colors_line[0]);
+
+  // solid
+  size_t positionSize_triangle = sizeof(glm::vec3) * positions_triangle.size();
+  size_t colorSize_triangle = sizeof(glm::vec4) * colors_triangle.size();
+  glGenBuffers(1, &vboSolid);
+  glBindBuffer(GL_ARRAY_BUFFER, vboSolid);
+  glBufferData(GL_ARRAY_BUFFER, positionSize_triangle + colorSize_triangle, nullptr,
+	  GL_STATIC_DRAW);
+  glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize_triangle, &positions_triangle[0]);
+  glBufferSubData(GL_ARRAY_BUFFER, positionSize_triangle, colorSize_triangle, &colors_triangle[0]);
 
   //
   pipelineProgram = new BasicPipelineProgram;
@@ -427,6 +471,20 @@ void initScene(int argc, char *argv[])
   loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
   glEnableVertexAttribArray(loc);
   glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize_line);
+
+  // solid
+  glGenVertexArrays(1, &vaoSolid);
+  glBindVertexArray(vaoSolid);
+  glBindBuffer(GL_ARRAY_BUFFER, vboSolid);
+
+  loc =
+	  glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
+  glEnableVertexAttribArray(loc);
+  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
+  glEnableVertexAttribArray(loc);
+  glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize_triangle);
 
 
   glEnable(GL_DEPTH_TEST);
