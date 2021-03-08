@@ -356,6 +356,7 @@ void initScene(int argc, char *argv[])
 	  {
 		  float grayscale = heightmapImage->getPixel(i, j, 0);
 		  float height = heightScale * grayscale;
+		  grayscale /= 255;
 		  glm::vec3 position = glm::vec3(i, height, -j);
 		  glm::vec4 color(grayscale, grayscale, grayscale, 1);
 		  colors.push_back(color);
