@@ -64,11 +64,15 @@ BasicPipelineProgram * pipelineProgram;
 
 GLint h_modelViewMatrix, h_projectionMatrix;
 
-std::vector<glm::vec3> positions;
-std::vector<glm::vec4> colors;
+glm::vec4 color_white(1, 1, 1, 1);
 
 int renderMode = 1;
 float heightScale = 0.25;
+
+std::vector<glm::vec3> positions;
+std::vector<glm::vec4> colors;
+std::vector<glm::vec3> positions_line;
+std::vector<glm::vec4> colors_line;
 
 // write a screenshot to the specified filename
 void saveScreenshot(const char * filename)
@@ -132,8 +136,18 @@ void displayFunc()
   pipelineProgram->SetProjectionMatrix(p);
 
   // bind the VAO
-  glBindVertexArray(vaoPoint);
-  glDrawArrays(GL_POINTS, 0, numVertices);
+  switch (renderMode)
+  {
+  case 1:
+	  glBindVertexArray(vaoPoint);
+	  glDrawArrays(GL_POINTS, 0, numVertices);
+	  break;
+  case 2:
+	  glBindVertexArray(vaoWireframe);
+	  glDrawArrays(GL_LINES, 0, positions_line.size());
+	  break;
+  }
+
 
   // unbind the VAO
   glBindVertexArray(0);
@@ -329,35 +343,64 @@ void initScene(int argc, char *argv[])
   int imageWidth = heightmapImage->getWidth();
   int imageHeight = heightmapImage->getHeight();
 
-  size_t positionSize = sizeof(glm::vec3) * imageWidth * imageHeight;
-  size_t colorSize = sizeof(glm::vec4) * imageWidth * imageHeight;
-
   for (int i = 0; i < imageWidth; i++)
   {
 	  for (int j = 0; j < imageHeight; j++)
 	  {
 		  float height = heightScale * heightmapImage->getPixel(i, j, 0);
-		  positions.push_back(glm::vec3(i, height, -j));
-		  colors.push_back(glm::vec4(1, 1, 1, 1));
+		  glm::vec3 position = glm::vec3(i, height, -j);
+
+		  // point
+		  positions.push_back(position);
+		  colors.push_back(color_white);
+
+		  // wireframe
+		  if (i != 0)
+		  {
+			  positions_line.push_back(position);
+			  positions_line.push_back(positions[numVertices - imageHeight]);
+			  colors_line.push_back(color_white);
+			  colors_line.push_back(color_white);
+		  }
+		  if (j != 0)
+		  {
+			  positions_line.push_back(position);
+			  positions_line.push_back(positions[numVertices - 1]);
+			  colors_line.push_back(color_white);
+			  colors_line.push_back(color_white);
+		  }
+
 		  numVertices++;
 	  }
   }
   
 
+  // point
+  size_t positionSize = sizeof(glm::vec3) * numVertices;
+  size_t colorSize = sizeof(glm::vec4) * numVertices;
   glGenBuffers(1, &vboPoint);
   glBindBuffer(GL_ARRAY_BUFFER, vboPoint);
   glBufferData(GL_ARRAY_BUFFER, positionSize + colorSize, nullptr,
                GL_STATIC_DRAW);
-
-  // upload position data
   glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions[0]);
-  // upload color data
   glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors[0]);
 
+  // wireframe
+  size_t positionSize_line = sizeof(glm::vec3) * positions_line.size();
+  size_t colorSize_line = sizeof(glm::vec4) * colors_line.size();
+  glGenBuffers(1, &vboWireframe);
+  glBindBuffer(GL_ARRAY_BUFFER, vboWireframe);
+  glBufferData(GL_ARRAY_BUFFER, positionSize_line + colorSize_line, nullptr,
+	  GL_STATIC_DRAW);
+  glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize_line, &positions_line[0]);
+  glBufferSubData(GL_ARRAY_BUFFER, positionSize_line, colorSize_line, &colors_line[0]);
+
+  //
   pipelineProgram = new BasicPipelineProgram;
   int ret = pipelineProgram->Init(shaderBasePath);
   if (ret != 0) abort();
 
+  // point
   glGenVertexArrays(1, &vaoPoint);
   glBindVertexArray(vaoPoint);
   glBindBuffer(GL_ARRAY_BUFFER, vboPoint);
@@ -370,6 +413,21 @@ void initScene(int argc, char *argv[])
   loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
   glEnableVertexAttribArray(loc);
   glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void *)positionSize);
+
+  // wireframe
+  glGenVertexArrays(1, &vaoWireframe);
+  glBindVertexArray(vaoWireframe);
+  glBindBuffer(GL_ARRAY_BUFFER, vboWireframe);
+
+  loc =
+	  glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
+  glEnableVertexAttribArray(loc);
+  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
+  glEnableVertexAttribArray(loc);
+  glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize_line);
+
 
   glEnable(GL_DEPTH_TEST);
 
