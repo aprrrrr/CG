@@ -51,12 +51,22 @@ char windowTitle[512] = "CSCI 420 homework I";
 
 ImageIO * heightmapImage;
 
-GLuint triVertexBuffer, triColorVertexBuffer;
-GLuint triVertexArray;
-int sizeTri;
+GLuint vboSolid, vaoSolid;
+GLuint vboWireframe, vaoWireframe;
+GLuint vboPoint, vaoPoint;
+GLuint vboSmooth, vboSmoothUp, vboSmoothDown, vboSmoothLeft, vboSmoothRight, vaoSmooth;
 
-OpenGLMatrix matrix;
+size_t numVertices = 0;
+
+OpenGLMatrix matrix; //openGLMatrix
 BasicPipelineProgram * pipelineProgram;
+
+GLint h_modelViewMatrix, h_projectionMatrix;
+
+glm::vec3 positions[256 * 256];
+glm::vec4 colors[256 * 256];
+
+int renderMode = 1;
 
 // write a screenshot to the specified filename
 void saveScreenshot(const char * filename)
@@ -80,7 +90,14 @@ void displayFunc()
 
   matrix.SetMatrixMode(OpenGLMatrix::ModelView);
   matrix.LoadIdentity();
-  matrix.LookAt(0, 0, 5, 0, 0, 0, 0, 1, 0);
+  matrix.LookAt(128, 300, 128, 128, 0, 128, 0, 0, 1);
+ 
+  // Translate, Rotate, Scale
+  matrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
+  matrix.Rotate(landRotate[0], 1, 0, 0);
+  matrix.Rotate(landRotate[1], 0, 1, 0);
+  matrix.Rotate(landRotate[2], 0, 0, 1);
+  matrix.Scale(landScale[0], landScale[1], landScale[2]);
 
   float m[16];
   matrix.SetMatrixMode(OpenGLMatrix::ModelView);
@@ -89,7 +106,22 @@ void displayFunc()
   float p[16];
   matrix.SetMatrixMode(OpenGLMatrix::Projection);
   matrix.GetMatrix(p);
-  //
+
+  // get a handle to the program
+  GLuint program = pipelineProgram->GetProgramHandle();
+  // get a handle to the modelViewMatrix shader variable
+	h_modelViewMatrix =
+	  glGetUniformLocation(program, "modelViewMatrix");
+  // upload m to the GPU
+  pipelineProgram->Bind(); // must do (once) before glUniformMatrix4fv
+  GLboolean isRowMajor = GL_FALSE;
+  glUniformMatrix4fv(h_modelViewMatrix, 1, isRowMajor, m);
+  h_projectionMatrix =
+	  glGetUniformLocation(program, "projectionMatrix");
+  // upload p to the GPU
+  glUniformMatrix4fv(h_projectionMatrix, 1, isRowMajor, p);
+
+  // 
   // bind shader
   pipelineProgram->Bind();
 
@@ -97,8 +129,12 @@ void displayFunc()
   pipelineProgram->SetModelViewMatrix(m);
   pipelineProgram->SetProjectionMatrix(p);
 
-  glBindVertexArray(triVertexArray);
-  glDrawArrays(GL_TRIANGLES, 0, sizeTri);
+  // bind the VAO
+  glBindVertexArray(vaoPoint);
+  glDrawArrays(GL_LINE_STRIP, 0, numVertices);
+
+  // unbind the VAO
+  glBindVertexArray(0);
 
   glutSwapBuffers();
 }
@@ -119,7 +155,10 @@ void reshapeFunc(int w, int h)
 
   matrix.SetMatrixMode(OpenGLMatrix::Projection);
   matrix.LoadIdentity();
-  matrix.Perspective(54.0f, (float)w / (float)h, 0.01f, 100.0f);
+  matrix.Perspective(54.0f, (float)w / (float)h, 0.01f, 1000.0f);
+
+  // set the mode back to ModelView
+  matrix.SetMatrixMode(OpenGLMatrix::ModelView);
 }
 
 void mouseMotionDragFunc(int x, int y)
@@ -248,6 +287,8 @@ void keyboardFunc(unsigned char key, int x, int y)
       // take a screenshot
       saveScreenshot("screenshot.jpg");
     break;
+
+
   }
 }
 
@@ -261,51 +302,61 @@ void initScene(int argc, char *argv[])
     exit(EXIT_FAILURE);
   }
 
+  // background color
   glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
-  // modify the following code accordingly
-  glm::vec3 triangle[3] = {
-    glm::vec3(0, 0, 0), 
-    glm::vec3(0, 1, 0),
-    glm::vec3(1, 0, 0)
-  };
+  // read in pixels
+  int imageWidth = heightmapImage->getWidth();
+  int imageHeight = heightmapImage->getHeight();
 
-  glm::vec4 color[3] = {
-    {0, 0, 1, 1},
-    {1, 0, 0, 1},
-    {0, 1, 0, 1},
-  };
+  for (int i = 0; i < imageWidth; i++)
+  {
+	  for (int j = 0; j < imageHeight; j++)
+	  {
+		  float heightScale = 0.25;
+		  float height = heightScale * heightmapImage->getPixel(i, j, 0);
+		  positions[numVertices] = glm::vec3(i, height, -j);
+		  colors[numVertices] = glm::vec4(1, 1, 1, 1);
+		  numVertices++;
+	  }
+  }
 
-  glGenBuffers(1, &triVertexBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, triVertexBuffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * 3, triangle,
+	glGenBuffers(1, &vboPoint);
+  glBindBuffer(GL_ARRAY_BUFFER, vboPoint);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(positions) + sizeof(colors), nullptr,
                GL_STATIC_DRAW);
 
-  glGenBuffers(1, &triColorVertexBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, triColorVertexBuffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * 3, color, GL_STATIC_DRAW);
+  // upload position data
+  glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(positions), positions);
+  // upload color data
+  glBufferSubData(GL_ARRAY_BUFFER, sizeof(positions), sizeof(colors), colors);
 
   pipelineProgram = new BasicPipelineProgram;
   int ret = pipelineProgram->Init(shaderBasePath);
   if (ret != 0) abort();
 
-  glGenVertexArrays(1, &triVertexArray);
-  glBindVertexArray(triVertexArray);
-  glBindBuffer(GL_ARRAY_BUFFER, triVertexBuffer);
+  glGenVertexArrays(1, &vaoPoint);
+  glBindVertexArray(vaoPoint);
+  glBindBuffer(GL_ARRAY_BUFFER, vboPoint);
 
   GLuint loc =
       glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
   glEnableVertexAttribArray(loc);
   glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void *)0);
 
-  glBindBuffer(GL_ARRAY_BUFFER, triColorVertexBuffer);
   loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
   glEnableVertexAttribArray(loc);
-  glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void *)0);
+  glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void *)sizeof(positions));
 
   glEnable(GL_DEPTH_TEST);
 
-  sizeTri = 3;
+
+  // initialize modelview and projection matrix
+  GLuint program = pipelineProgram->GetProgramHandle();
+  h_modelViewMatrix =
+	  glGetUniformLocation(program, "modelViewMatrix");
+  h_projectionMatrix =	
+	  glGetUniformLocation(program, "projectionMatrix");
 
   std::cout << "GL error: " << glGetError() << std::endl;
 }
