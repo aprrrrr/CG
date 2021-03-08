@@ -14,6 +14,7 @@
 
 #include <iostream>
 #include <cstring>
+#include <vector>
 
 #if defined(WIN32) || defined(_WIN32)
   #ifdef _DEBUG
@@ -63,8 +64,8 @@ BasicPipelineProgram * pipelineProgram;
 
 GLint h_modelViewMatrix, h_projectionMatrix;
 
-glm::vec3 positions[256*256];
-glm::vec4 colors[256*256];
+std::vector<glm::vec3> positions;
+std::vector<glm::vec4> colors;
 
 int renderMode = 1;
 float heightScale = 0.25;
@@ -328,26 +329,30 @@ void initScene(int argc, char *argv[])
   int imageWidth = heightmapImage->getWidth();
   int imageHeight = heightmapImage->getHeight();
 
+  size_t positionSize = sizeof(glm::vec3) * imageWidth * imageHeight;
+  size_t colorSize = sizeof(glm::vec4) * imageWidth * imageHeight;
+
   for (int i = 0; i < imageWidth; i++)
   {
 	  for (int j = 0; j < imageHeight; j++)
 	  {
 		  float height = heightScale * heightmapImage->getPixel(i, j, 0);
-		  positions[numVertices] = glm::vec3(i, height, -j);
-		  colors[numVertices] = glm::vec4(1, 1, 1, 1);
+		  positions.push_back(glm::vec3(i, height, -j));
+		  colors.push_back(glm::vec4(1, 1, 1, 1));
 		  numVertices++;
 	  }
   }
   
+
   glGenBuffers(1, &vboPoint);
   glBindBuffer(GL_ARRAY_BUFFER, vboPoint);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(positions) + sizeof(colors), nullptr,
+  glBufferData(GL_ARRAY_BUFFER, positionSize + colorSize, nullptr,
                GL_STATIC_DRAW);
 
   // upload position data
-  glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(positions), positions);
+  glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions[0]);
   // upload color data
-  glBufferSubData(GL_ARRAY_BUFFER, sizeof(positions), sizeof(colors), colors);
+  glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors[0]);
 
   pipelineProgram = new BasicPipelineProgram;
   int ret = pipelineProgram->Init(shaderBasePath);
@@ -364,7 +369,7 @@ void initScene(int argc, char *argv[])
 
   loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
   glEnableVertexAttribArray(loc);
-  glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void *)sizeof(positions));
+  glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void *)positionSize);
 
   glEnable(GL_DEPTH_TEST);
 
