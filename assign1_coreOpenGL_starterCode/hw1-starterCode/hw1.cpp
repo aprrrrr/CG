@@ -52,6 +52,7 @@ char windowTitle[512] = "CSCI 420 homework I";
 
 ImageIO * heightmapImage;
 
+// vbo & vao
 GLuint vboSolid, vaoSolid;
 GLuint vboWireframe, vaoWireframe;
 GLuint vboPoint, vaoPoint;
@@ -59,7 +60,7 @@ GLuint vboSmooth, vboSmoothUp, vboSmoothDown, vboSmoothLeft, vboSmoothRight, vao
 
 size_t numVertices = 0;
 
-OpenGLMatrix matrix; //openGLMatrix
+OpenGLMatrix matrix; 
 BasicPipelineProgram * pipelineProgram;
 
 glm::vec4 color_white(1, 1, 1, 1);
@@ -126,19 +127,23 @@ void displayFunc()
   // bind the VAO
   switch (renderMode)
   {
+	  // point mode
   case 1:
 	  glBindVertexArray(vaoPoint);
 	  glDrawArrays(GL_POINTS, 0, numVertices);
 	  break;
+	  // wireframe mode
   case 2:
 	  glBindVertexArray(vaoWireframe);
 	  glDrawArrays(GL_LINES, 0, positions_line.size());
 	  break;
   case 3:
+	  // solid mode
 	  glBindVertexArray(vaoSolid);
 	  glDrawArrays(GL_TRIANGLES, 0, positions_triangle.size());
 	  break;
   case 4:
+	  // smooth mode
 	  glBindVertexArray(vaoSmooth);
 	  glDrawArrays(GL_TRIANGLES, 0, positions_triangle.size());
 	  break;
@@ -152,10 +157,8 @@ void displayFunc()
 
 void idleFunc()
 {
-  // do some stuff... 
-
-  // for example, here, you can save the screenshots to disk (to make the animation)
-	if (startRecord &&numScreenshots <= 300)
+  // when user hits 'a', starts taking screenshots until there are 300 
+	if (startRecord && numScreenshots <= 300)
 	{
 		char fileName[5];
 		sprintf(fileName, "%03d", numScreenshots);
@@ -305,26 +308,26 @@ void keyboardFunc(unsigned char key, int x, int y)
     break;
 	
 	case '1':
-		cout << "You pressed 1" << endl;
+		cout << "Switch to Point mode." << endl;
 		renderMode = 1;
 	break;
 
 	case '2':
-		cout << "You pressed 2" << endl;
+		cout << "Switch to Wireframe mode." << endl;
 		renderMode = 2;
 	break;
 
 	case '3':
-		cout << "You pressed 3" << endl;
+		cout << "Switch to Solid mode." << endl;
 		renderMode = 3;
 	break;
 
 	case '4':
-		cout << "You pressed 4" << endl;
+		cout << "Switch to Smooth mode." << endl;
 		renderMode = 4;
 	break;
 	case 'a':
-		cout << "You pressed A" << endl;
+		cout << "You pressed A. Start recording..." << endl;
 		startRecord = true;
 		break;
 
@@ -344,7 +347,7 @@ void initScene(int argc, char *argv[])
   // background color
   glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
-  // read in pixels
+  // read in pixels from image
   int imageWidth = heightmapImage->getWidth();
   int imageHeight = heightmapImage->getHeight();
 
@@ -352,36 +355,41 @@ void initScene(int argc, char *argv[])
   {
 	  for (int j = 0; j < imageHeight; j++)
 	  {
+		  // get greyscale value
 		  float grayscale = heightmapImage->getPixel(i, j, 0);
 		  float height = heightScale * grayscale;
 		  grayscale /= 255;
+		  // convert to position for vertices
 		  glm::vec3 position = glm::vec3(i, height, -j);
+		  // convert to rgb
 		  glm::vec4 color(grayscale, grayscale, grayscale, 1);
+		  // fill vector of colors
 		  colors.push_back(color);
 
-		  // point
+		  // fill positions and colors_point for point mode
 		  positions.push_back(position);
 		  colors_point.push_back(color_white);
 
-		  // wireframe
+		  // fill positions_line and colors_line for wireframe mode
 		  if (i != 0)
 		  {
-			  positions_line.push_back(position);
-			  positions_line.push_back(positions[numVertices - imageHeight]);
-			  for (int k = 0; k < 2; k++) colors_line.push_back(color_white);
+			  positions_line.push_back(position); // current vertex
+			  positions_line.push_back(positions[numVertices - imageHeight]); // vertex below
+			  colors_line.push_back(color_white);
+			  colors_line.push_back(color_white);
 		  }
 		  if (j != 0)
 		  {
-			  positions_line.push_back(position);
-			  positions_line.push_back(positions[numVertices - 1]);
-			  for (int k = 0; k < 2; k++) colors_line.push_back(color_white);
+			  positions_line.push_back(position); // current vertex
+			  positions_line.push_back(positions[numVertices - 1]); // vertex to the left
+			  colors_line.push_back(color_white);
+			  colors_line.push_back(color_white);
 		  }
 		  numVertices++;
 	  }
   }
 
-
-  // solid & smooth
+  // calculate corresponding positions of surrounding vertices
   numVertices = 0;
   for (int i = 0; i < imageWidth; i++)
   {
@@ -389,7 +397,7 @@ void initScene(int argc, char *argv[])
 	  {
 		  glm::vec3 posCenter, posLeft, posRight, posUp, posDown;
 		  posCenter = positions[numVertices];
-		  posLeft = posRight = posUp = posDown = posCenter;
+		  posLeft = posRight = posUp = posDown = posCenter; // set to posCenter when not applicable
 		  if (i != 0) posDown = positions[numVertices - imageHeight];
 		  if (i != imageWidth - 1) posUp = positions[numVertices + imageHeight];
 		  if (j != 0) posLeft = positions[numVertices - 1];
@@ -402,6 +410,8 @@ void initScene(int argc, char *argv[])
 	  }
   }
 
+  // fill positions_triangle, colors_triangle for Solid mode
+  // fill positions_tri_left/right/up/down for smoothing
   numVertices = 0;
   for (int i = 0; i < imageWidth; i++)
   {
@@ -488,7 +498,7 @@ void initScene(int argc, char *argv[])
 	  }
   }
 
-  // point
+  // upload data for point mode
   size_t positionSize = sizeof(glm::vec3) * numVertices;
   size_t colorSize = sizeof(glm::vec4) * numVertices;
   glGenBuffers(1, &vboPoint);
@@ -498,7 +508,7 @@ void initScene(int argc, char *argv[])
   glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions[0]);
   glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors_point[0]);
 
-  // wireframe
+  // upload data for wireframe mode
   size_t positionSize_line = sizeof(glm::vec3) * positions_line.size();
   size_t colorSize_line = sizeof(glm::vec4) * colors_line.size();
   glGenBuffers(1, &vboWireframe);
@@ -508,7 +518,7 @@ void initScene(int argc, char *argv[])
   glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize_line, &positions_line[0]);
   glBufferSubData(GL_ARRAY_BUFFER, positionSize_line, colorSize_line, &colors_line[0]);
 
-  // solid
+  // upload data for solid mode
   size_t positionSize_triangle = sizeof(glm::vec3) * positions_triangle.size();
   size_t colorSize_triangle = sizeof(glm::vec4) * colors_triangle.size();
   glGenBuffers(1, &vboSolid);
@@ -518,7 +528,7 @@ void initScene(int argc, char *argv[])
   glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize_triangle, &positions_triangle[0]);
   glBufferSubData(GL_ARRAY_BUFFER, positionSize_triangle, colorSize_triangle, &colors_triangle[0]);
 
-  // smooth
+  // upload data for smooth mod
   //	center
   glGenBuffers(1, &vboSmooth);
   glBindBuffer(GL_ARRAY_BUFFER, vboSmooth);
@@ -543,12 +553,11 @@ void initScene(int argc, char *argv[])
   glBindBuffer(GL_ARRAY_BUFFER, vboSmoothDown);
   glBufferData(GL_ARRAY_BUFFER, positionSize_triangle, &positions_tri_down[0], GL_STATIC_DRAW);
 
-  //
   pipelineProgram = new BasicPipelineProgram;
   int ret = pipelineProgram->Init(shaderBasePath);
   if (ret != 0) abort();
 
-  // point
+  // bind vao for Point mode
   glGenVertexArrays(1, &vaoPoint);
   glBindVertexArray(vaoPoint);
   glBindBuffer(GL_ARRAY_BUFFER, vboPoint);
@@ -561,7 +570,7 @@ void initScene(int argc, char *argv[])
   glEnableVertexAttribArray(loc);
   glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void *)positionSize);
 
-  // wireframe
+  // bind vao for Wireframe mode
   glGenVertexArrays(1, &vaoWireframe);
   glBindVertexArray(vaoWireframe);
   glBindBuffer(GL_ARRAY_BUFFER, vboWireframe);
@@ -574,7 +583,7 @@ void initScene(int argc, char *argv[])
   glEnableVertexAttribArray(loc);
   glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize_line);
 
-  // solid
+  // bind vao for Solid mode
   glGenVertexArrays(1, &vaoSolid);
   glBindVertexArray(vaoSolid);
   glBindBuffer(GL_ARRAY_BUFFER, vboSolid);
@@ -587,7 +596,7 @@ void initScene(int argc, char *argv[])
   glEnableVertexAttribArray(loc);
   glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize_triangle);
 
-  // smooth
+  // bind vao for Smooth mode
   glGenVertexArrays(1, &vaoSmooth);
   glBindVertexArray(vaoSmooth);
 
