@@ -66,7 +66,7 @@ BasicPipelineProgram * pipelineProgram;
 glm::vec4 color_white(1, 1, 1, 1);
 
 int renderMode = 1;
-float heightScale = 0.1;
+float heightScale = 0.1f;
 
 std::vector<glm::vec4> colors, colors_point, colors_line, colors_triangle;
 std::vector<glm::vec3> positions, positions_line, positions_triangle, 
@@ -334,6 +334,295 @@ void keyboardFunc(unsigned char key, int x, int y)
   }
 }
 
+void generateVertices()
+{
+	// read in pixels from image
+	int imageWidth = heightmapImage->getWidth();
+	int imageHeight = heightmapImage->getHeight();
+
+	for (int i = 0; i < imageWidth; i++)
+	{
+		for (int j = 0; j < imageHeight; j++)
+		{
+			// get greyscale value
+			float grayscale = heightmapImage->getPixel(i, j, 0);
+			float height = heightScale * grayscale;
+			grayscale /= 255;
+			// convert to position for vertices
+			glm::vec3 position = glm::vec3(i, height, -j);
+			// convert to rgb
+			glm::vec4 color(grayscale, grayscale, grayscale, 1);
+			// fill vector of colors
+			colors.push_back(color);
+
+			// fill positions and colors_point for point mode
+			positions.push_back(position);
+			colors_point.push_back(color_white);
+
+			// fill positions_line and colors_line for wireframe mode
+			if (i != 0)
+			{
+				positions_line.push_back(position); // current vertex
+				positions_line.push_back(positions[numVertices - imageHeight]); // vertex below
+				colors_line.push_back(color_white);
+				colors_line.push_back(color_white);
+			}
+			if (j != 0)
+			{
+				positions_line.push_back(position); // current vertex
+				positions_line.push_back(positions[numVertices - 1]); // vertex to the left
+				colors_line.push_back(color_white);
+				colors_line.push_back(color_white);
+			}
+			numVertices++;
+		}
+	}
+
+	// calculate corresponding positions of surrounding vertices
+	numVertices = 0;
+	for (int i = 0; i < imageWidth; i++)
+	{
+		for (int j = 0; j < imageHeight; j++)
+		{
+			glm::vec3 posCenter, posLeft, posRight, posUp, posDown;
+			posCenter = positions[numVertices];
+			posLeft = posRight = posUp = posDown = posCenter; // set to posCenter when not applicable
+			if (i != 0) posDown = positions[numVertices - imageHeight];
+			if (i != imageWidth - 1) posUp = positions[numVertices + imageHeight];
+			if (j != 0) posLeft = positions[numVertices - 1];
+			if (j != imageHeight - 1) posRight = positions[numVertices + 1];
+			positions_down.push_back(posDown);
+			positions_up.push_back(posUp);
+			positions_left.push_back(posLeft);
+			positions_right.push_back(posRight);
+			numVertices++;
+		}
+	}
+
+	// fill positions_triangle, colors_triangle for Solid mode
+	// fill positions_tri_left/right/up/down for smoothing
+	numVertices = 0;
+	for (int i = 0; i < imageWidth; i++)
+	{
+		for (int j = 0; j < imageHeight; j++)
+		{
+			if (i != 0 && j != 0)
+			{
+				// for each vertex, draw 2 triangles with vertices (self, left, lowerleft) and (self, lowerleft, down)
+				glm::vec3 position = positions[numVertices];
+				glm::vec4 color = colors[numVertices];
+
+				glm::vec3 right = positions_right[numVertices];
+				glm::vec3 up = positions_up[numVertices];
+
+				glm::vec3 left = positions[numVertices - 1];
+				glm::vec3 left_left = positions_left[numVertices - 1];
+				glm::vec3 left_right = positions_right[numVertices - 1];
+				glm::vec3 left_up = positions_up[numVertices - 1];
+				glm::vec3 left_down = positions_down[numVertices - 1];
+
+				glm::vec3 down = positions[numVertices - imageHeight];
+				glm::vec3 down_left = positions_left[numVertices - imageHeight];
+				glm::vec3 down_right = positions_right[numVertices - imageHeight];
+				glm::vec3 down_up = positions_up[numVertices - imageHeight];
+				glm::vec3 down_down = positions_down[numVertices - imageHeight];
+
+				glm::vec3 lowerleft = positions[numVertices - imageHeight - 1];
+				glm::vec3 lowerleft_left = positions_left[numVertices - imageHeight - 1];
+				glm::vec3 lowerleft_right = positions_right[numVertices - imageHeight - 1];
+				glm::vec3 lowerleft_up = positions_up[numVertices - imageHeight - 1];
+				glm::vec3 lowerleft_down = positions_down[numVertices - imageHeight - 1];
+
+				glm::vec4 leftColor = colors[numVertices - 1];
+				glm::vec4 downColor = colors[numVertices - imageHeight];
+				glm::vec4 lowerleftColor = colors[numVertices - imageHeight - 1];
+
+				positions_triangle.push_back(position);
+				positions_triangle.push_back(left);
+				positions_triangle.push_back(lowerleft);
+
+				positions_tri_left.push_back(left);
+				positions_tri_right.push_back(right);
+				positions_tri_up.push_back(up);
+				positions_tri_down.push_back(down);
+
+				positions_tri_left.push_back(left_left);
+				positions_tri_right.push_back(left_right);
+				positions_tri_up.push_back(left_up);
+				positions_tri_down.push_back(left_down);
+
+				positions_tri_left.push_back(lowerleft_left);
+				positions_tri_right.push_back(lowerleft_right);
+				positions_tri_up.push_back(lowerleft_up);
+				positions_tri_down.push_back(lowerleft_down);
+
+				colors_triangle.push_back(color);
+				colors_triangle.push_back(leftColor);
+				colors_triangle.push_back(lowerleftColor);
+
+
+				positions_triangle.push_back(position);
+				positions_triangle.push_back(lowerleft);
+				positions_triangle.push_back(down);
+
+				colors_triangle.push_back(color);
+				colors_triangle.push_back(lowerleftColor);
+				colors_triangle.push_back(downColor);
+
+				positions_tri_left.push_back(left);
+				positions_tri_right.push_back(right);
+				positions_tri_up.push_back(up);
+				positions_tri_down.push_back(down);
+
+				positions_tri_left.push_back(lowerleft_left);
+				positions_tri_right.push_back(lowerleft_right);
+				positions_tri_up.push_back(lowerleft_up);
+				positions_tri_down.push_back(lowerleft_down);
+
+				positions_tri_left.push_back(down_left);
+				positions_tri_right.push_back(down_right);
+				positions_tri_up.push_back(down_up);
+				positions_tri_down.push_back(down_down);
+			}
+			numVertices++;
+		}
+	}
+}
+
+void initVBO()
+{
+	// upload data for point mode
+	size_t positionSize = sizeof(glm::vec3) * numVertices;
+	size_t colorSize = sizeof(glm::vec4) * numVertices;
+	glGenBuffers(1, &vboPoint);
+	glBindBuffer(GL_ARRAY_BUFFER, vboPoint);
+	glBufferData(GL_ARRAY_BUFFER, positionSize + colorSize, nullptr,
+		GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors_point[0]);
+
+	// upload data for wireframe mode
+	size_t positionSize_line = sizeof(glm::vec3) * positions_line.size();
+	size_t colorSize_line = sizeof(glm::vec4) * colors_line.size();
+	glGenBuffers(1, &vboWireframe);
+	glBindBuffer(GL_ARRAY_BUFFER, vboWireframe);
+	glBufferData(GL_ARRAY_BUFFER, positionSize_line + colorSize_line, nullptr,
+		GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize_line, &positions_line[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, positionSize_line, colorSize_line, &colors_line[0]);
+
+	// upload data for solid mode
+	size_t positionSize_triangle = sizeof(glm::vec3) * positions_triangle.size();
+	size_t colorSize_triangle = sizeof(glm::vec4) * colors_triangle.size();
+	glGenBuffers(1, &vboSolid);
+	glBindBuffer(GL_ARRAY_BUFFER, vboSolid);
+	glBufferData(GL_ARRAY_BUFFER, positionSize_triangle + colorSize_triangle, nullptr,
+		GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize_triangle, &positions_triangle[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, positionSize_triangle, colorSize_triangle, &colors_triangle[0]);
+
+	// upload data for smooth mode
+	//	center
+	glGenBuffers(1, &vboSmooth);
+	glBindBuffer(GL_ARRAY_BUFFER, vboSmooth);
+	glBufferData(GL_ARRAY_BUFFER, positionSize_triangle + colorSize_triangle, nullptr,
+		GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize_triangle, &positions_triangle[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, positionSize_triangle, colorSize_triangle, &colors_triangle[0]);
+	//	left
+	glGenBuffers(1, &vboSmoothLeft);
+	glBindBuffer(GL_ARRAY_BUFFER, vboSmoothLeft);
+	glBufferData(GL_ARRAY_BUFFER, positionSize_triangle, &positions_tri_left[0], GL_STATIC_DRAW);
+	//	right
+	glGenBuffers(1, &vboSmoothRight);
+	glBindBuffer(GL_ARRAY_BUFFER, vboSmoothRight);
+	glBufferData(GL_ARRAY_BUFFER, positionSize_triangle, &positions_tri_right[0], GL_STATIC_DRAW);
+	//	up
+	glGenBuffers(1, &vboSmoothUp);
+	glBindBuffer(GL_ARRAY_BUFFER, vboSmoothUp);
+	glBufferData(GL_ARRAY_BUFFER, positionSize_triangle, &positions_tri_up[0], GL_STATIC_DRAW);
+	//	down
+	glGenBuffers(1, &vboSmoothDown);
+	glBindBuffer(GL_ARRAY_BUFFER, vboSmoothDown);
+	glBufferData(GL_ARRAY_BUFFER, positionSize_triangle, &positions_tri_down[0], GL_STATIC_DRAW);
+
+	// bind vao for Point mode
+	glGenVertexArrays(1, &vaoPoint);
+	glBindVertexArray(vaoPoint);
+	glBindBuffer(GL_ARRAY_BUFFER, vboPoint);
+
+	GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize);
+
+	// bind vao for Wireframe mode
+	glGenVertexArrays(1, &vaoWireframe);
+	glBindVertexArray(vaoWireframe);
+	glBindBuffer(GL_ARRAY_BUFFER, vboWireframe);
+
+	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize_line);
+
+	// bind vao for Solid mode
+	glGenVertexArrays(1, &vaoSolid);
+	glBindVertexArray(vaoSolid);
+	glBindBuffer(GL_ARRAY_BUFFER, vboSolid);
+
+	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize_triangle);
+
+	// bind vao for Smooth mode
+	glGenVertexArrays(1, &vaoSmooth);
+	glBindVertexArray(vaoSmooth);
+
+	//	center
+	glBindBuffer(GL_ARRAY_BUFFER, vboSmooth);
+	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize_triangle);
+
+	//	left
+	glBindBuffer(GL_ARRAY_BUFFER, vboSmoothLeft);
+	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "positionLeft");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+	//	right
+	glBindBuffer(GL_ARRAY_BUFFER, vboSmoothRight);
+	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "positionRight");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+	//	up
+	glBindBuffer(GL_ARRAY_BUFFER, vboSmoothUp);
+	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "positionUp");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+	//	down
+	glBindBuffer(GL_ARRAY_BUFFER, vboSmoothDown);
+	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "positionDown");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+}
+
 void initScene(int argc, char *argv[])
 {
   // load the image from a jpeg disk file to main memory
@@ -347,294 +636,15 @@ void initScene(int argc, char *argv[])
   // background color
   glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
-  // read in pixels from image
-  int imageWidth = heightmapImage->getWidth();
-  int imageHeight = heightmapImage->getHeight();
+  glEnable(GL_DEPTH_TEST);
 
-  for (int i = 0; i < imageWidth; i++)
-  {
-	  for (int j = 0; j < imageHeight; j++)
-	  {
-		  // get greyscale value
-		  float grayscale = heightmapImage->getPixel(i, j, 0);
-		  float height = heightScale * grayscale;
-		  grayscale /= 255;
-		  // convert to position for vertices
-		  glm::vec3 position = glm::vec3(i, height, -j);
-		  // convert to rgb
-		  glm::vec4 color(grayscale, grayscale, grayscale, 1);
-		  // fill vector of colors
-		  colors.push_back(color);
-
-		  // fill positions and colors_point for point mode
-		  positions.push_back(position);
-		  colors_point.push_back(color_white);
-
-		  // fill positions_line and colors_line for wireframe mode
-		  if (i != 0)
-		  {
-			  positions_line.push_back(position); // current vertex
-			  positions_line.push_back(positions[numVertices - imageHeight]); // vertex below
-			  colors_line.push_back(color_white);
-			  colors_line.push_back(color_white);
-		  }
-		  if (j != 0)
-		  {
-			  positions_line.push_back(position); // current vertex
-			  positions_line.push_back(positions[numVertices - 1]); // vertex to the left
-			  colors_line.push_back(color_white);
-			  colors_line.push_back(color_white);
-		  }
-		  numVertices++;
-	  }
-  }
-
-  // calculate corresponding positions of surrounding vertices
-  numVertices = 0;
-  for (int i = 0; i < imageWidth; i++)
-  {
-	  for (int j = 0; j < imageHeight; j++)
-	  {
-		  glm::vec3 posCenter, posLeft, posRight, posUp, posDown;
-		  posCenter = positions[numVertices];
-		  posLeft = posRight = posUp = posDown = posCenter; // set to posCenter when not applicable
-		  if (i != 0) posDown = positions[numVertices - imageHeight];
-		  if (i != imageWidth - 1) posUp = positions[numVertices + imageHeight];
-		  if (j != 0) posLeft = positions[numVertices - 1];
-		  if (j != imageHeight - 1) posRight = positions[numVertices + 1];
-		  positions_down.push_back(posDown);
-		  positions_up.push_back(posUp);
-		  positions_left.push_back(posLeft);
-		  positions_right.push_back(posRight);
-		  numVertices++;
-	  }
-  }
-
-  // fill positions_triangle, colors_triangle for Solid mode
-  // fill positions_tri_left/right/up/down for smoothing
-  numVertices = 0;
-  for (int i = 0; i < imageWidth; i++)
-  {
-	  for (int j = 0; j < imageHeight; j++)
-	  {
-		  if (i != 0 && j != 0)
-		  {
-			  glm::vec3 position = positions[numVertices];
-			  glm::vec4 color = colors[numVertices];
-
-			  glm::vec3 right = positions_right[numVertices];
-			  glm::vec3 up = positions_up[numVertices];
-
-			  glm::vec3 left = positions[numVertices - 1];
-			  glm::vec3 left_left = positions_left[numVertices - 1];
-			  glm::vec3 left_right = positions_right[numVertices - 1];
-			  glm::vec3 left_up = positions_up[numVertices - 1];
-			  glm::vec3 left_down = positions_down[numVertices - 1];
-
-			  glm::vec3 down = positions[numVertices - imageHeight];
-			  glm::vec3 down_left = positions_left[numVertices - imageHeight];
-			  glm::vec3 down_right = positions_right[numVertices - imageHeight];
-			  glm::vec3 down_up = positions_up[numVertices - imageHeight];
-			  glm::vec3 down_down = positions_down[numVertices - imageHeight];
-
-			  glm::vec3 lowerleft = positions[numVertices - imageHeight - 1];
-			  glm::vec3 lowerleft_left = positions_left[numVertices - imageHeight - 1];
-			  glm::vec3 lowerleft_right = positions_right[numVertices - imageHeight - 1];
-			  glm::vec3 lowerleft_up = positions_up[numVertices - imageHeight - 1];
-			  glm::vec3 lowerleft_down = positions_down[numVertices - imageHeight - 1];
-
-			  glm::vec4 leftColor = colors[numVertices - 1];
-			  glm::vec4 downColor = colors[numVertices - imageHeight];
-			  glm::vec4 lowerleftColor = colors[numVertices - imageHeight - 1];
-
-			  positions_triangle.push_back(position);
-			  positions_triangle.push_back(left);
-			  positions_triangle.push_back(lowerleft);
-
-			  positions_tri_left.push_back(left);
-			  positions_tri_right.push_back(right);
-			  positions_tri_up.push_back(up);
-			  positions_tri_down.push_back(down);
-
-			  positions_tri_left.push_back(left_left);
-			  positions_tri_right.push_back(left_right);
-			  positions_tri_up.push_back(left_up);
-			  positions_tri_down.push_back(left_down);
-
-			  positions_tri_left.push_back(lowerleft_left);
-			  positions_tri_right.push_back(lowerleft_right);
-			  positions_tri_up.push_back(lowerleft_up);
-			  positions_tri_down.push_back(lowerleft_down);
-
-			  colors_triangle.push_back(color);
-			  colors_triangle.push_back(leftColor);
-			  colors_triangle.push_back(lowerleftColor);
-
-
-			  positions_triangle.push_back(position);
-			  positions_triangle.push_back(lowerleft);
-			  positions_triangle.push_back(down);
-
-			  colors_triangle.push_back(color);
-			  colors_triangle.push_back(lowerleftColor);
-			  colors_triangle.push_back(downColor);
-
-			  positions_tri_left.push_back(left);
-			  positions_tri_right.push_back(right);
-			  positions_tri_up.push_back(up);
-			  positions_tri_down.push_back(down);
-
-			  positions_tri_left.push_back(lowerleft_left);
-			  positions_tri_right.push_back(lowerleft_right);
-			  positions_tri_up.push_back(lowerleft_up);
-			  positions_tri_down.push_back(lowerleft_down);
-
-			  positions_tri_left.push_back(down_left);
-			  positions_tri_right.push_back(down_right);
-			  positions_tri_up.push_back(down_up);
-			  positions_tri_down.push_back(down_down);
-		  }
-		  numVertices++;
-	  }
-  }
-
-  // upload data for point mode
-  size_t positionSize = sizeof(glm::vec3) * numVertices;
-  size_t colorSize = sizeof(glm::vec4) * numVertices;
-  glGenBuffers(1, &vboPoint);
-  glBindBuffer(GL_ARRAY_BUFFER, vboPoint);
-  glBufferData(GL_ARRAY_BUFFER, positionSize + colorSize, nullptr,
-               GL_STATIC_DRAW);
-  glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions[0]);
-  glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors_point[0]);
-
-  // upload data for wireframe mode
-  size_t positionSize_line = sizeof(glm::vec3) * positions_line.size();
-  size_t colorSize_line = sizeof(glm::vec4) * colors_line.size();
-  glGenBuffers(1, &vboWireframe);
-  glBindBuffer(GL_ARRAY_BUFFER, vboWireframe);
-  glBufferData(GL_ARRAY_BUFFER, positionSize_line + colorSize_line, nullptr,
-	  GL_STATIC_DRAW);
-  glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize_line, &positions_line[0]);
-  glBufferSubData(GL_ARRAY_BUFFER, positionSize_line, colorSize_line, &colors_line[0]);
-
-  // upload data for solid mode
-  size_t positionSize_triangle = sizeof(glm::vec3) * positions_triangle.size();
-  size_t colorSize_triangle = sizeof(glm::vec4) * colors_triangle.size();
-  glGenBuffers(1, &vboSolid);
-  glBindBuffer(GL_ARRAY_BUFFER, vboSolid);
-  glBufferData(GL_ARRAY_BUFFER, positionSize_triangle + colorSize_triangle, nullptr,
-	  GL_STATIC_DRAW);
-  glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize_triangle, &positions_triangle[0]);
-  glBufferSubData(GL_ARRAY_BUFFER, positionSize_triangle, colorSize_triangle, &colors_triangle[0]);
-
-  // upload data for smooth mod
-  //	center
-  glGenBuffers(1, &vboSmooth);
-  glBindBuffer(GL_ARRAY_BUFFER, vboSmooth);
-  glBufferData(GL_ARRAY_BUFFER, positionSize_triangle + colorSize_triangle, nullptr,
-	  GL_STATIC_DRAW);
-  glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize_triangle, &positions_triangle[0]);
-  glBufferSubData(GL_ARRAY_BUFFER, positionSize_triangle, colorSize_triangle, &colors_triangle[0]);
-  //	left
-  glGenBuffers(1, &vboSmoothLeft);
-  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothLeft);
-  glBufferData(GL_ARRAY_BUFFER, positionSize_triangle, &positions_tri_left[0], GL_STATIC_DRAW);
-  //	right
-  glGenBuffers(1, &vboSmoothRight);
-  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothRight);
-  glBufferData(GL_ARRAY_BUFFER, positionSize_triangle, &positions_tri_right[0], GL_STATIC_DRAW);
-  //	up
-  glGenBuffers(1, &vboSmoothUp);
-  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothUp);
-  glBufferData(GL_ARRAY_BUFFER, positionSize_triangle, &positions_tri_up[0], GL_STATIC_DRAW);
-  //	down
-  glGenBuffers(1, &vboSmoothDown);
-  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothDown);
-  glBufferData(GL_ARRAY_BUFFER, positionSize_triangle, &positions_tri_down[0], GL_STATIC_DRAW);
-
+  // get program handle
   pipelineProgram = new BasicPipelineProgram;
   int ret = pipelineProgram->Init(shaderBasePath);
   if (ret != 0) abort();
 
-  // bind vao for Point mode
-  glGenVertexArrays(1, &vaoPoint);
-  glBindVertexArray(vaoPoint);
-  glBindBuffer(GL_ARRAY_BUFFER, vboPoint);
-
-  GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
-  glEnableVertexAttribArray(loc);
-  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void *)0);
-
-  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
-  glEnableVertexAttribArray(loc);
-  glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void *)positionSize);
-
-  // bind vao for Wireframe mode
-  glGenVertexArrays(1, &vaoWireframe);
-  glBindVertexArray(vaoWireframe);
-  glBindBuffer(GL_ARRAY_BUFFER, vboWireframe);
-
-  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
-  glEnableVertexAttribArray(loc);
-  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
-
-  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
-  glEnableVertexAttribArray(loc);
-  glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize_line);
-
-  // bind vao for Solid mode
-  glGenVertexArrays(1, &vaoSolid);
-  glBindVertexArray(vaoSolid);
-  glBindBuffer(GL_ARRAY_BUFFER, vboSolid);
-
-  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
-  glEnableVertexAttribArray(loc);
-  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
-
-  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
-  glEnableVertexAttribArray(loc);
-  glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize_triangle);
-
-  // bind vao for Smooth mode
-  glGenVertexArrays(1, &vaoSmooth);
-  glBindVertexArray(vaoSmooth);
-
-  //	center
-  glBindBuffer(GL_ARRAY_BUFFER, vboSmooth);
-  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
-  glEnableVertexAttribArray(loc);
-  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
-  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
-  glEnableVertexAttribArray(loc);
-  glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize_triangle);
-
-  //	left
-  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothLeft);
-  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "positionLeft");
-  glEnableVertexAttribArray(loc);
-  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
-
-  //	right
-  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothRight);
-  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "positionRight");
-  glEnableVertexAttribArray(loc);
-  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
-
-  //	up
-  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothUp);
-  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "positionUp");
-  glEnableVertexAttribArray(loc);
-  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
-
-  //	down
-  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothDown);
-  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "positionDown");
-  glEnableVertexAttribArray(loc);
-  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
-
-
-  glEnable(GL_DEPTH_TEST);
+  generateVertices();
+  initVBO();
 
   std::cout << "GL error: " << glGetError() << std::endl;
 }
@@ -706,5 +716,4 @@ int main(int argc, char *argv[])
   // sink forever into the glut loop
   glutMainLoop();
 }
-
 
