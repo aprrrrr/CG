@@ -65,12 +65,15 @@ BasicPipelineProgram * pipelineProgram;
 glm::vec4 color_white(1, 1, 1, 1);
 
 int renderMode = 1;
-float heightScale = 0.25;
+float heightScale = 0.1;
 
-std::vector<glm::vec4> colors, colors_point, colors_line, colors_triangle, 
-	colors_center, colors_left, colors_right, colors_down, colors_up;
+std::vector<glm::vec4> colors, colors_point, colors_line, colors_triangle;
 std::vector<glm::vec3> positions, positions_line, positions_triangle, 
-	positions_center, positions_left, positions_right, positions_down, positions_up;
+	positions_left, positions_right, positions_down, positions_up,
+	positions_tri_left, positions_tri_right, positions_tri_up, positions_tri_down;
+
+int numScreenshots = 0;
+bool startRecord = false;
 
 // write a screenshot to the specified filename
 void saveScreenshot(const char * filename)
@@ -100,7 +103,7 @@ void displayFunc()
   matrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
   matrix.Rotate(landRotate[0], 1, 0, 0);
   matrix.Rotate(landRotate[1], 0, 1, 0);
-  matrix.Rotate(landRotate[2], 0, 0, 1);
+  matrix.Rotate(landRotate[2], 0, 0, -1);
   matrix.Scale(landScale[0], landScale[1], landScale[2]);
 
   float m[16];
@@ -111,18 +114,14 @@ void displayFunc()
   matrix.SetMatrixMode(OpenGLMatrix::Projection);
   matrix.GetMatrix(p);
 
-  // get a handle to the program
-  GLuint program = pipelineProgram->GetProgramHandle();
-  // upload render mode to GPU
-  glUniform1i(glGetUniformLocation(program, "mode"), renderMode);
-
-  // 
   // bind shader
   pipelineProgram->Bind();
 
   // set variable
   pipelineProgram->SetModelViewMatrix(m);
   pipelineProgram->SetProjectionMatrix(p);
+  int mode = renderMode == 4 ? 1 : 0;
+  pipelineProgram->SetRenderMode(mode);
 
   // bind the VAO
   switch (renderMode)
@@ -141,10 +140,9 @@ void displayFunc()
 	  break;
   case 4:
 	  glBindVertexArray(vaoSmooth);
-	  glDrawArrays(GL_TRIANGLES, 0, positions_center.size());
+	  glDrawArrays(GL_TRIANGLES, 0, positions_triangle.size());
 	  break;
   }
-
 
   // unbind the VAO
   glBindVertexArray(0);
@@ -157,8 +155,13 @@ void idleFunc()
   // do some stuff... 
 
   // for example, here, you can save the screenshots to disk (to make the animation)
-
-  // make the screen update 
+	if (startRecord &&numScreenshots <= 300)
+	{
+		char fileName[5];
+		sprintf(fileName, "%03d", numScreenshots);
+		saveScreenshot(("animation/" + std::string(fileName) + ".jpg").c_str());
+		numScreenshots++;
+	}
   glutPostRedisplay();
 }
 
@@ -320,6 +323,11 @@ void keyboardFunc(unsigned char key, int x, int y)
 		cout << "You pressed 4" << endl;
 		renderMode = 4;
 	break;
+	case 'a':
+		cout << "You pressed A" << endl;
+		startRecord = true;
+		break;
+
   }
 }
 
@@ -368,13 +376,62 @@ void initScene(int argc, char *argv[])
 			  positions_line.push_back(positions[numVertices - 1]);
 			  for (int k = 0; k < 2; k++) colors_line.push_back(color_white);
 		  }
+		  numVertices++;
+	  }
+  }
 
-		  // solid
+
+  // solid & smooth
+  numVertices = 0;
+  for (int i = 0; i < imageWidth; i++)
+  {
+	  for (int j = 0; j < imageHeight; j++)
+	  {
+		  glm::vec3 posCenter, posLeft, posRight, posUp, posDown;
+		  posCenter = positions[numVertices];
+		  posLeft = posRight = posUp = posDown = posCenter;
+		  if (i != 0) posDown = positions[numVertices - imageHeight];
+		  if (i != imageWidth - 1) posUp = positions[numVertices + imageHeight];
+		  if (j != 0) posLeft = positions[numVertices - 1];
+		  if (j != imageHeight - 1) posRight = positions[numVertices + 1];
+		  positions_down.push_back(posDown);
+		  positions_up.push_back(posUp);
+		  positions_left.push_back(posLeft);
+		  positions_right.push_back(posRight);
+		  numVertices++;
+	  }
+  }
+
+  numVertices = 0;
+  for (int i = 0; i < imageWidth; i++)
+  {
+	  for (int j = 0; j < imageHeight; j++)
+	  {
 		  if (i != 0 && j != 0)
 		  {
+			  glm::vec3 position = positions[numVertices];
+			  glm::vec4 color = colors[numVertices];
+
+			  glm::vec3 right = positions_right[numVertices];
+			  glm::vec3 up = positions_up[numVertices];
+
 			  glm::vec3 left = positions[numVertices - 1];
+			  glm::vec3 left_left = positions_left[numVertices - 1];
+			  glm::vec3 left_right = positions_right[numVertices - 1];
+			  glm::vec3 left_up = positions_up[numVertices - 1];
+			  glm::vec3 left_down = positions_down[numVertices - 1];
+
 			  glm::vec3 down = positions[numVertices - imageHeight];
+			  glm::vec3 down_left = positions_left[numVertices - imageHeight];
+			  glm::vec3 down_right = positions_right[numVertices - imageHeight];
+			  glm::vec3 down_up = positions_up[numVertices - imageHeight];
+			  glm::vec3 down_down = positions_down[numVertices - imageHeight];
+
 			  glm::vec3 lowerleft = positions[numVertices - imageHeight - 1];
+			  glm::vec3 lowerleft_left = positions_left[numVertices - imageHeight - 1];
+			  glm::vec3 lowerleft_right = positions_right[numVertices - imageHeight - 1];
+			  glm::vec3 lowerleft_up = positions_up[numVertices - imageHeight - 1];
+			  glm::vec3 lowerleft_down = positions_down[numVertices - imageHeight - 1];
 
 			  glm::vec4 leftColor = colors[numVertices - 1];
 			  glm::vec4 downColor = colors[numVertices - imageHeight];
@@ -383,22 +440,53 @@ void initScene(int argc, char *argv[])
 			  positions_triangle.push_back(position);
 			  positions_triangle.push_back(left);
 			  positions_triangle.push_back(lowerleft);
+
+			  positions_tri_left.push_back(left);
+			  positions_tri_right.push_back(right);
+			  positions_tri_up.push_back(up);
+			  positions_tri_down.push_back(down);
+
+			  positions_tri_left.push_back(left_left);
+			  positions_tri_right.push_back(left_right);
+			  positions_tri_up.push_back(left_up);
+			  positions_tri_down.push_back(left_down);
+
+			  positions_tri_left.push_back(lowerleft_left);
+			  positions_tri_right.push_back(lowerleft_right);
+			  positions_tri_up.push_back(lowerleft_up);
+			  positions_tri_down.push_back(lowerleft_down);
+
 			  colors_triangle.push_back(color);
 			  colors_triangle.push_back(leftColor);
 			  colors_triangle.push_back(lowerleftColor);
 
+
 			  positions_triangle.push_back(position);
 			  positions_triangle.push_back(lowerleft);
 			  positions_triangle.push_back(down);
+
 			  colors_triangle.push_back(color);
 			  colors_triangle.push_back(lowerleftColor);
 			  colors_triangle.push_back(downColor);
-		  }
 
+			  positions_tri_left.push_back(left);
+			  positions_tri_right.push_back(right);
+			  positions_tri_up.push_back(up);
+			  positions_tri_down.push_back(down);
+
+			  positions_tri_left.push_back(lowerleft_left);
+			  positions_tri_right.push_back(lowerleft_right);
+			  positions_tri_up.push_back(lowerleft_up);
+			  positions_tri_down.push_back(lowerleft_down);
+
+			  positions_tri_left.push_back(down_left);
+			  positions_tri_right.push_back(down_right);
+			  positions_tri_up.push_back(down_up);
+			  positions_tri_down.push_back(down_down);
+		  }
 		  numVertices++;
 	  }
   }
-  
 
   // point
   size_t positionSize = sizeof(glm::vec3) * numVertices;
@@ -430,6 +518,31 @@ void initScene(int argc, char *argv[])
   glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize_triangle, &positions_triangle[0]);
   glBufferSubData(GL_ARRAY_BUFFER, positionSize_triangle, colorSize_triangle, &colors_triangle[0]);
 
+  // smooth
+  //	center
+  glGenBuffers(1, &vboSmooth);
+  glBindBuffer(GL_ARRAY_BUFFER, vboSmooth);
+  glBufferData(GL_ARRAY_BUFFER, positionSize_triangle + colorSize_triangle, nullptr,
+	  GL_STATIC_DRAW);
+  glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize_triangle, &positions_triangle[0]);
+  glBufferSubData(GL_ARRAY_BUFFER, positionSize_triangle, colorSize_triangle, &colors_triangle[0]);
+  //	left
+  glGenBuffers(1, &vboSmoothLeft);
+  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothLeft);
+  glBufferData(GL_ARRAY_BUFFER, positionSize_triangle, &positions_tri_left[0], GL_STATIC_DRAW);
+  //	right
+  glGenBuffers(1, &vboSmoothRight);
+  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothRight);
+  glBufferData(GL_ARRAY_BUFFER, positionSize_triangle, &positions_tri_right[0], GL_STATIC_DRAW);
+  //	up
+  glGenBuffers(1, &vboSmoothUp);
+  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothUp);
+  glBufferData(GL_ARRAY_BUFFER, positionSize_triangle, &positions_tri_up[0], GL_STATIC_DRAW);
+  //	down
+  glGenBuffers(1, &vboSmoothDown);
+  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothDown);
+  glBufferData(GL_ARRAY_BUFFER, positionSize_triangle, &positions_tri_down[0], GL_STATIC_DRAW);
+
   //
   pipelineProgram = new BasicPipelineProgram;
   int ret = pipelineProgram->Init(shaderBasePath);
@@ -440,8 +553,7 @@ void initScene(int argc, char *argv[])
   glBindVertexArray(vaoPoint);
   glBindBuffer(GL_ARRAY_BUFFER, vboPoint);
 
-  GLuint loc =
-      glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
+  GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
   glEnableVertexAttribArray(loc);
   glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void *)0);
 
@@ -454,8 +566,7 @@ void initScene(int argc, char *argv[])
   glBindVertexArray(vaoWireframe);
   glBindBuffer(GL_ARRAY_BUFFER, vboWireframe);
 
-  loc =
-	  glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
+  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
   glEnableVertexAttribArray(loc);
   glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 
@@ -468,14 +579,50 @@ void initScene(int argc, char *argv[])
   glBindVertexArray(vaoSolid);
   glBindBuffer(GL_ARRAY_BUFFER, vboSolid);
 
-  loc =
-	  glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
+  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
   glEnableVertexAttribArray(loc);
   glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 
   loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
   glEnableVertexAttribArray(loc);
   glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize_triangle);
+
+  // smooth
+  glGenVertexArrays(1, &vaoSmooth);
+  glBindVertexArray(vaoSmooth);
+
+  //	center
+  glBindBuffer(GL_ARRAY_BUFFER, vboSmooth);
+  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
+  glEnableVertexAttribArray(loc);
+  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
+  glEnableVertexAttribArray(loc);
+  glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize_triangle);
+
+  //	left
+  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothLeft);
+  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "positionLeft");
+  glEnableVertexAttribArray(loc);
+  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+  //	right
+  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothRight);
+  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "positionRight");
+  glEnableVertexAttribArray(loc);
+  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+  //	up
+  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothUp);
+  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "positionUp");
+  glEnableVertexAttribArray(loc);
+  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+  //	down
+  glBindBuffer(GL_ARRAY_BUFFER, vboSmoothDown);
+  loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "positionDown");
+  glEnableVertexAttribArray(loc);
+  glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 
 
   glEnable(GL_DEPTH_TEST);
