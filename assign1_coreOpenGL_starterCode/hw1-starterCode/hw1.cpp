@@ -62,20 +62,15 @@ size_t numVertices = 0;
 OpenGLMatrix matrix; //openGLMatrix
 BasicPipelineProgram * pipelineProgram;
 
-GLint h_modelViewMatrix, h_projectionMatrix;
-
 glm::vec4 color_white(1, 1, 1, 1);
 
 int renderMode = 1;
 float heightScale = 0.25;
 
-std::vector<glm::vec4> colors;
-std::vector<glm::vec3> positions;
-std::vector<glm::vec4> colors_point;
-std::vector<glm::vec3> positions_line;
-std::vector<glm::vec4> colors_line;
-std::vector<glm::vec3> positions_triangle;
-std::vector<glm::vec4> colors_triangle;
+std::vector<glm::vec4> colors, colors_point, colors_line, colors_triangle, 
+	colors_center, colors_left, colors_right, colors_down, colors_up;
+std::vector<glm::vec3> positions, positions_line, positions_triangle, 
+	positions_center, positions_left, positions_right, positions_down, positions_up;
 
 // write a screenshot to the specified filename
 void saveScreenshot(const char * filename)
@@ -118,17 +113,8 @@ void displayFunc()
 
   // get a handle to the program
   GLuint program = pipelineProgram->GetProgramHandle();
-  // get a handle to the modelViewMatrix shader variable
-	h_modelViewMatrix =
-	  glGetUniformLocation(program, "modelViewMatrix");
-  // upload m to the GPU
-  pipelineProgram->Bind(); // must do (once) before glUniformMatrix4fv
-  GLboolean isRowMajor = GL_FALSE;
-  glUniformMatrix4fv(h_modelViewMatrix, 1, isRowMajor, m);
-  h_projectionMatrix =
-	  glGetUniformLocation(program, "projectionMatrix");
-  // upload p to the GPU
-  glUniformMatrix4fv(h_projectionMatrix, 1, isRowMajor, p);
+  // upload render mode to GPU
+  glUniform1i(glGetUniformLocation(program, "mode"), renderMode);
 
   // 
   // bind shader
@@ -152,6 +138,10 @@ void displayFunc()
   case 3:
 	  glBindVertexArray(vaoSolid);
 	  glDrawArrays(GL_TRIANGLES, 0, positions_triangle.size());
+	  break;
+  case 4:
+	  glBindVertexArray(vaoSmooth);
+	  glDrawArrays(GL_TRIANGLES, 0, positions_center.size());
 	  break;
   }
 
@@ -489,14 +479,6 @@ void initScene(int argc, char *argv[])
 
 
   glEnable(GL_DEPTH_TEST);
-
-
-  // initialize modelview and projection matrix
-  GLuint program = pipelineProgram->GetProgramHandle();
-  h_modelViewMatrix =
-	  glGetUniformLocation(program, "modelViewMatrix");
-  h_projectionMatrix =	
-	  glGetUniformLocation(program, "projectionMatrix");
 
   std::cout << "GL error: " << glGetError() << std::endl;
 }
