@@ -63,6 +63,8 @@ size_t numVertices = 0;
 OpenGLMatrix matrix; 
 BasicPipelineProgram * pipelineProgram;
 
+int imageWidth, imageHeight;
+
 glm::vec4 color_white(1, 1, 1, 1);
 
 int renderMode = 1;
@@ -98,7 +100,8 @@ void displayFunc()
 
   matrix.SetMatrixMode(OpenGLMatrix::ModelView);
   matrix.LoadIdentity();
-  matrix.LookAt(128, 300, 128, 128, 0, 128, 0, 0, 1);
+  int imageCenter = imageWidth / 2;
+  matrix.LookAt(imageCenter, imageCenter*3, -imageCenter, imageCenter, 0, -imageCenter, 0, 0, 1);
  
   // Translate, Rotate, Scale
   matrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
@@ -337,8 +340,8 @@ void keyboardFunc(unsigned char key, int x, int y)
 void generateVertices()
 {
 	// read in pixels from image
-	int imageWidth = heightmapImage->getWidth();
-	int imageHeight = heightmapImage->getHeight();
+	imageWidth = heightmapImage->getWidth();
+	imageHeight = heightmapImage->getHeight();
 
 	for (int i = 0; i < imageWidth; i++)
 	{
