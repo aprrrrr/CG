@@ -62,10 +62,6 @@ int imageWidth, imageHeight;
 int numScreenshots = 0;
 bool startRecord = false;
 
-int numVertices = 0;
-GLuint vbo, vao;
-std::vector<glm::vec3> positions;
-
 
 // write a screenshot to the specified filename
 void saveScreenshot(const char * filename)
@@ -115,8 +111,6 @@ void displayFunc()
   pipelineProgram->SetProjectionMatrix(p);
 
   // bind the VAO
-  glBindVertexArray(vao);
-  glDrawArrays(GL_POINTS, 0, numVertices);
 
   // unbind the VAO
   glBindVertexArray(0);
@@ -437,6 +431,21 @@ int initTexture(const char* imageFilename, GLuint textureHandle)
 	return 0;
 }
 
+void initScene(int argc, char* argv[])
+{
+	// background color
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+	glEnable(GL_DEPTH_TEST);
+
+	// get program handle
+	pipelineProgram = new BasicPipelineProgram;
+	int ret = pipelineProgram->Init(shaderBasePath);
+	if (ret != 0) abort();
+
+	std::cout << "GL error: " << glGetError() << std::endl;
+}
+
 // Note: You should combine this file
 // with the solution of homework 1.
 
@@ -456,12 +465,70 @@ int main(int argc, char** argv)
 		exit(0);
 	}
 
+	cout << "Initializing GLUT..." << endl;
+	glutInit(&argc, argv);
+
+	cout << "Initializing OpenGL..." << endl;
+
+#ifdef __APPLE__
+	glutInitDisplayMode(GLUT_3_2_CORE_PROFILE | GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_STENCIL);
+#else
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_STENCIL);
+#endif
+
+	glutInitWindowSize(windowWidth, windowHeight);
+	glutInitWindowPosition(0, 0);
+	glutCreateWindow(windowTitle);
+
+	cout << "OpenGL Version: " << glGetString(GL_VERSION) << endl;
+	cout << "OpenGL Renderer: " << glGetString(GL_RENDERER) << endl;
+	cout << "Shading Language Version: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << endl;
+
+#ifdef __APPLE__
+	// This is needed on recent Mac OS X versions to correctly display the window.
+	glutReshapeWindow(windowWidth - 1, windowHeight - 1);
+#endif
+
+	// tells glut to use a particular display function to redraw 
+	glutDisplayFunc(displayFunc);
+	// perform animation inside idleFunc
+	glutIdleFunc(idleFunc);
+	// callback for mouse drags
+	glutMotionFunc(mouseMotionDragFunc);
+	// callback for idle mouse movement
+	glutPassiveMotionFunc(mouseMotionFunc);
+	// callback for mouse button changes
+	glutMouseFunc(mouseButtonFunc);
+	// callback for resizing the window
+	glutReshapeFunc(reshapeFunc);
+	// callback for pressing the keys on the keyboard
+	glutKeyboardFunc(keyboardFunc);
+
+	// init glew
+#ifdef __APPLE__
+  // nothing is needed on Apple
+#else
+  // Windows, Linux
+	GLint result = glewInit();
+	if (result != GLEW_OK)
+	{
+		cout << "error: " << glewGetErrorString(result) << endl;
+		exit(EXIT_FAILURE);
+	}
+#endif
+
 	// load the splines from the provided filename
 	loadSplines(argv[1]);
 
 	printf("Loaded %d spline(s).\n", numSplines);
 	for (int i = 0; i < numSplines; i++)
 		printf("Num control points in spline %d: %d.\n", i, splines[i].numControlPoints);
+
+	// do initialization
+	initScene(argc, argv);
+
+	// sink forever into the glut loop
+	glutMainLoop();
 
 	return 0;
 }
