@@ -62,6 +62,14 @@ int imageWidth, imageHeight;
 int numScreenshots = 0;
 bool startRecord = false;
 
+GLuint vao, vbo;
+
+glm::vec4 color_white(1, 1, 1, 1);
+std::vector<glm::vec4> colors;
+std::vector<glm::vec3> positions;
+glm::mat4 basis;
+glm::mat3x4 control;
+
 
 // write a screenshot to the specified filename
 void saveScreenshot(const char * filename)
@@ -85,8 +93,7 @@ void displayFunc()
 
   matrix.SetMatrixMode(OpenGLMatrix::ModelView);
   matrix.LoadIdentity();
-  int imageCenter = imageWidth / 2;
-  matrix.LookAt(imageCenter, imageCenter*3, -imageCenter, imageCenter, 0, -imageCenter, 0, 0, 1);
+  matrix.LookAt(0, 2, 0, 0, 0, 0, 0, 0, 1);
  
   // Translate, Rotate, Scale
   matrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
@@ -111,6 +118,8 @@ void displayFunc()
   pipelineProgram->SetProjectionMatrix(p);
 
   // bind the VAO
+  glBindVertexArray(vao);
+  glDrawArrays(GL_LINES, 0, positions.size());
 
   // unbind the VAO
   glBindVertexArray(0);
@@ -431,6 +440,63 @@ int initTexture(const char* imageFilename, GLuint textureHandle)
 	return 0;
 }
 
+void initVBO()
+{
+	// upload data for point mode
+	size_t positionSize = sizeof(glm::vec3) * positions.size();
+	size_t colorSize = sizeof(glm::vec4) * colors.size();
+	glGenBuffers(1, &vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, positionSize + colorSize, nullptr,
+		GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors[0]);
+
+	// bind vao for Point mode
+	glGenVertexArrays(1, &vao);
+	glBindVertexArray(vao);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
+	GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize);
+}
+
+void generateVertices()
+{
+	float s = 0.5f;
+	basis = glm::mat4( -s, 2 * s, -s, 0,
+					2 - s, s - 3, 0, 1,
+					s - 2, 3 - 2 * s, s, 0.0f,
+					s, -s, 0.0f, 0.0f );
+
+	Spline spline = splines[0];
+	for (int i = 0; i < spline.numControlPoints - 3; i++)
+	{
+		control = glm::mat3x4(spline.points[i].x, spline.points[i + 1].x, spline.points[i + 2].x, spline.points[i + 3].x, 
+			spline.points[i].y, spline.points[i + 1].y, spline.points[i + 2].y, spline.points[i + 3].y,
+			spline.points[i].z, spline.points[i + 1].z,	spline.points[i + 2].z, spline.points[i + 3].z);
+
+		for (float u = 0.0f; u <= 1.0f; u += 0.001f)
+		{
+			glm::vec4 uVec(pow(u, 3), pow(u, 2), u, 1);
+			glm::vec3 p = uVec * basis * control;
+			if (positions.size() > 1)
+			{
+				positions.push_back(positions[positions.size()-1]);
+				colors.push_back(color_white);
+			}
+			positions.push_back(p);
+			colors.push_back(color_white);
+		}
+	}
+
+}
+
 void initScene(int argc, char* argv[])
 {
 	// background color
@@ -442,6 +508,9 @@ void initScene(int argc, char* argv[])
 	pipelineProgram = new BasicPipelineProgram;
 	int ret = pipelineProgram->Init(shaderBasePath);
 	if (ret != 0) abort();
+
+	generateVertices();
+	initVBO();
 
 	std::cout << "GL error: " << glGetError() << std::endl;
 }
