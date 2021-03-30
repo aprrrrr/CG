@@ -65,8 +65,8 @@ bool startRecord = false;
 GLuint vao, vbo;
 
 glm::vec4 color_white(1, 1, 1, 1);
-std::vector<glm::vec4> colors;
-std::vector<glm::vec3> positions;
+std::vector<glm::vec4> colors_line;
+std::vector<glm::vec3> positions_line;
 std::vector<glm::vec3> tube_positions;
 std::vector<glm::vec4> tube_colors;
 glm::mat4 basis;
@@ -74,7 +74,7 @@ glm::mat3x4 control;
 
 std::vector<glm::vec3> tangents;
 std::vector<glm::vec3> normals;
-std::vector<glm::vec3> cameraPos;
+std::vector<glm::vec3> positions;
 
 glm::vec3 eye(0.0f, 2.0f, 0.0f);
 glm::vec3 center(0.0f, 0.0f, 0.0f);
@@ -132,7 +132,7 @@ void displayFunc()
 
   // bind the VAO
   glBindVertexArray(vao);
-  glDrawArrays(GL_LINES, 0, positions.size());
+  glDrawArrays(GL_LINES, 0, positions_line.size());
 
   // unbind the VAO
   glBindVertexArray(0);
@@ -152,10 +152,11 @@ void idleFunc()
 	}
 
 	// animate the ride
-	eye = cameraPos[animationID];
+	eye = positions[animationID];
 	center = tangents[animationID];
 	up = normals[animationID];
 	animationID++;
+	animationID %= positions.size();
 
 	glutPostRedisplay();
 }
@@ -463,14 +464,14 @@ int initTexture(const char* imageFilename, GLuint textureHandle)
 void initVBO()
 {
 	// upload data for point mode
-	size_t positionSize = sizeof(glm::vec3) * positions.size();
-	size_t colorSize = sizeof(glm::vec4) * colors.size();
+	size_t positionSize = sizeof(glm::vec3) * positions_line.size();
+	size_t colorSize = sizeof(glm::vec4) * colors_line.size();
 	glGenBuffers(1, &vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, positionSize + colorSize, nullptr,
 		GL_STATIC_DRAW);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions[0]);
-	glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions_line[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors_line[0]);
 
 	// bind vao for Point mode
 	glGenVertexArrays(1, &vao);
@@ -495,25 +496,30 @@ void generateVertices()
 					s, -s, 0.0f, 0.0f );
 
 	Spline spline = splines[0];
+	glm::vec3 p0, p, b, n;
+	glm::vec3 v[8]; // 8 vertices of tube's cross section
+
 	for (int i = 0; i < spline.numControlPoints - 3; i++)
 	{
 		control = glm::mat3x4(spline.points[i].x, spline.points[i + 1].x, spline.points[i + 2].x, spline.points[i + 3].x, 
 			spline.points[i].y, spline.points[i + 1].y, spline.points[i + 2].y, spline.points[i + 3].y,
 			spline.points[i].z, spline.points[i + 1].z,	spline.points[i + 2].z, spline.points[i + 3].z);
 
-		glm::vec3 b, n;
 		for (float u = 0.0f; u <= 1.0f; u += 0.001f)
 		{
+			// calculate position
 			glm::vec4 uVec(pow(u, 3), pow(u, 2), u, 1);
-			glm::vec3 p = uVec * basis * control;
-			if (positions.size() > 1)
-			{
-				positions.push_back(positions[positions.size()-1]);
-				colors.push_back(color_white);
-			}
+			p0 = p;
+			p = uVec * basis * control;
 			positions.push_back(p);
-			cameraPos.push_back(p);
-			colors.push_back(color_white);
+
+			if (positions_line.size() > 1)
+			{
+				positions_line.push_back(p0);
+				colors_line.push_back(color_white);
+			}
+			positions_line.push_back(p);
+			colors_line.push_back(color_white);
 
 			// calculate tangent
 			// t(u) = p'(u) = [3u^2 2u 1 0] M C
@@ -542,9 +548,13 @@ void generateVertices()
 				b = glm::normalize(b);
 			}
 			normals.push_back(n);
+
+			// fill in positions and normals for tube
+			if (positions.empty()) continue;
+
+
 		}
 	}
-
 }
 
 void initScene(int argc, char* argv[])
