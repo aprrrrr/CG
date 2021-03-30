@@ -67,6 +67,8 @@ GLuint vao, vbo;
 glm::vec4 color_white(1, 1, 1, 1);
 std::vector<glm::vec4> colors;
 std::vector<glm::vec3> positions;
+std::vector<glm::vec3> tube_positions;
+std::vector<glm::vec4> tube_colors;
 glm::mat4 basis;
 glm::mat3x4 control;
 
@@ -499,7 +501,7 @@ void generateVertices()
 			spline.points[i].y, spline.points[i + 1].y, spline.points[i + 2].y, spline.points[i + 3].y,
 			spline.points[i].z, spline.points[i + 1].z,	spline.points[i + 2].z, spline.points[i + 3].z);
 
-		glm::vec3 t0, t1, b0, b1, n0, n1;
+		glm::vec3 b, n;
 		for (float u = 0.0f; u <= 1.0f; u += 0.001f)
 		{
 			glm::vec4 uVec(pow(u, 3), pow(u, 2), u, 1);
@@ -523,30 +525,23 @@ void generateVertices()
 			// calculate normal
 			if (normals.empty())
 			{
-				t0 = t1 = t;
 				// N0 = unit(T0 x V)
-				n0 = cross(t0, glm::vec3(0.0f, 0.0f, 1.0f));
-				n0 = glm::normalize(n0);
-				n1 = n0;
+				n = cross(t, glm::vec3(0.0f, 0.0f, 1.0f));
+				n = glm::normalize(n);
 				// B0 = unit(T0 x N0)
-				b0 = cross(t0, n0);
-				b0 = glm::normalize(b0);
-				b1 = b0;
+				b = cross(t, n);
+				b = glm::normalize(b);
 			}
 			else
 			{
-				t0 = t1;
-				t1 = t;
 				// N1 = unit(B0 x T1) 
-				n1 = cross(b0, t1);
-				n1 = glm::normalize(n1);
+				n = cross(b, t);
+				n = glm::normalize(n);
 				// B1 = unit(T1 x N1)
-				b1 = cross(t1 , n1);
-				b1 = glm::normalize(b1);
-				// update b0
-				b0 = b1;
+				b = cross(t , n);
+				b = glm::normalize(b);
 			}
-			normals.push_back(n1);
+			normals.push_back(n);
 		}
 	}
 
