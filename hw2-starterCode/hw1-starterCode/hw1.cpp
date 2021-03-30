@@ -56,19 +56,26 @@ char windowTitle[512] = "CSCI 420 homework II";
 
 OpenGLMatrix matrix; 
 BasicPipelineProgram * pipelineProgram;
+GLuint program;
+BasicPipelineProgram * texturePipelineProgram;
+GLuint textureProgram;
 
 int imageWidth, imageHeight;
 
 int numScreenshots = 0;
 bool startRecord = false;
 
-GLuint vao, vbo;
+GLuint vaoRail, vboRail, vaoTex, vboTex;
 
 glm::vec4 color_white(1, 1, 1, 1);
+
 std::vector<glm::vec4> colors_line;
-std::vector<glm::vec3> verts_line;
-std::vector<glm::vec3> verts_tube;
+std::vector<glm::vec3> positions_line;
+std::vector<glm::vec3> positions_tube;
 std::vector<glm::vec4> colors_tube;
+std::vector<glm::vec3> positions_plane;
+std::vector<glm::vec2> texCoords;
+
 glm::mat4 basis;
 glm::mat3x4 control;
 
@@ -76,12 +83,15 @@ std::vector<glm::vec3> tangents;
 std::vector<glm::vec3> normals;
 std::vector<glm::vec3> positions;
 
-glm::vec3 eye(0.0f, 2.0f, 0.0f);
-glm::vec3 center(0.0f, 0.0f, 0.0f);
-glm::vec3 up(0.0f, 0.0f, 1.0f);
+glm::vec3 eye;
+glm::vec3 center;
+glm::vec3 up;
 int animationID = 0;
 
-float a = 0.01f;
+float a = 0.02f; // track dimensions
+float d = 50.0f; // plane dimensions
+float h = -5.0f; // plane height (y-axis)
+GLuint texHandle;
 
 
 // write a screenshot to the specified filename
@@ -127,15 +137,25 @@ void displayFunc()
 
   // bind shader
   pipelineProgram->Bind();
-
   // set variable
   pipelineProgram->SetModelViewMatrix(m);
   pipelineProgram->SetProjectionMatrix(p);
-
   // bind the VAO
-  glBindVertexArray(vao);
-  glDrawArrays(GL_TRIANGLES, 0, verts_tube.size());
+  glBindVertexArray(vaoRail);
+  glDrawArrays(GL_TRIANGLES, 0, positions_tube.size());
+  // unbind the VAO
+  glBindVertexArray(0);
 
+  // bind texture shader
+  texturePipelineProgram->Bind();
+  // set variable
+  texturePipelineProgram->SetModelViewMatrix(m);
+  texturePipelineProgram->SetProjectionMatrix(p);
+  // select texture to use
+  glBindTexture(GL_TEXTURE_2D, texHandle);
+  // bind the VAO
+  glBindVertexArray(vaoTex);
+  glDrawArrays(GL_TRIANGLES, 0, positions_plane.size());
   // unbind the VAO
   glBindVertexArray(0);
 
@@ -154,9 +174,10 @@ void idleFunc()
 	}
 
 	// animate the ride
-	eye = positions[animationID] + glm::vec3(0.0f,1.0f,0.0f);
-	center = tangents[animationID];
 	up = normals[animationID];
+	eye = positions[animationID] + 0.1f * up;
+	center = tangents[animationID] + eye;
+
 	animationID++;
 	animationID %= positions.size();
 
@@ -463,35 +484,62 @@ int initTexture(const char* imageFilename, GLuint textureHandle)
 	return 0;
 }
 
-void initVBO()
+void initRailVBO()
 {
-	// upload data for point mode
-	size_t positionSize = sizeof(glm::vec3) * verts_tube.size();
+	// upload data for tube
+	size_t positionSize = sizeof(glm::vec3) * positions_tube.size();
 	//size_t positionSize = sizeof(glm::vec3) * verts_line.size();
 	size_t colorSize = sizeof(glm::vec4) * colors_tube.size();
 	//size_t colorSize = sizeof(glm::vec4) * colors_line.size();
-	glGenBuffers(1, &vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glGenBuffers(1, &vboRail);
+	glBindBuffer(GL_ARRAY_BUFFER, vboRail);
 	glBufferData(GL_ARRAY_BUFFER, positionSize + colorSize, nullptr,
 		GL_STATIC_DRAW);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &verts_tube[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions_tube[0]);
 	glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors_tube[0]);
 
-	// bind vao for Point mode
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	// bind vao for tube
+	glGenVertexArrays(1, &vaoRail);
+	glBindVertexArray(vaoRail);
+	glBindBuffer(GL_ARRAY_BUFFER, vboRail);
 
-	GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
+	GLuint loc = glGetAttribLocation(program, "position");
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 
-	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
+	loc = glGetAttribLocation(program, "color");
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize);
 }
 
-void generateVertices()
+void initTextureVBO()
+{
+	// upload data for texture
+	size_t positionSize = sizeof(glm::vec3) * positions_plane.size();
+	size_t texCoordSize = sizeof(glm::vec2) * texCoords.size();
+	glGenBuffers(1, &vboTex);
+	glBindBuffer(GL_ARRAY_BUFFER, vboTex);
+	glBufferData(GL_ARRAY_BUFFER, positionSize + texCoordSize, nullptr,
+		GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions_plane[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, positionSize, texCoordSize, &texCoords[0]);
+
+	// bind vao for texture
+	glGenVertexArrays(1, &vaoTex);
+	glBindVertexArray(vaoTex);
+	glBindBuffer(GL_ARRAY_BUFFER, vboTex);
+
+	GLuint loc = glGetAttribLocation(textureProgram, "position");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+	loc = glGetAttribLocation(textureProgram, "texCoord");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 2, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize);
+
+}
+
+void generateRailData()
 {
 	float s = 0.5f;
 	basis = glm::mat4( -s, 2 * s, -s, 0,
@@ -511,20 +559,9 @@ void generateVertices()
 
 		for (float u = 0.0f; u <= 1.0f; u += 0.001f)
 		{
-			// fill in vertices for line
-			if (verts_line.size() > 1)
-			{
-				verts_line.push_back(p);
-				colors_line.push_back(color_white);
-			}
-
 			// calculate position
 			glm::vec4 uVec(pow(u, 3), pow(u, 2), u, 1);
 			p = uVec * basis * control;
-
-			// fill in vertices and colors for line
-			verts_line.push_back(p);
-			colors_line.push_back(color_white);
 
 			// calculate tangent
 			// t(u) = p'(u) = [3u^2 2u 1 0] M C
@@ -537,7 +574,7 @@ void generateVertices()
 			if (normals.empty())
 			{
 				// N0 = unit(T0 x V)
-				n = cross(t, glm::vec3(0.0f, 0.0f, 1.0f));
+				n = cross(t, glm::vec3(0.0f, 0.0f, -1.0f));
 				n = glm::normalize(n);
 				// B0 = unit(T0 x N0)
 				b = cross(t, n);
@@ -573,33 +610,33 @@ void generateVertices()
 
 				// add vertices of triangles
 				// (0,4,1), (1,4,5), (1,5,2), (2,5,6), (2,6,3), (3,6,7), (3,7,0), (0,7,4)
-				verts_tube.push_back(v[0]);//041
-				verts_tube.push_back(v[4]);
-				verts_tube.push_back(v[1]);
-				verts_tube.push_back(v[1]);//145
-				verts_tube.push_back(v[4]);
-				verts_tube.push_back(v[5]);
+				positions_tube.push_back(v[0]);//041
+				positions_tube.push_back(v[4]);
+				positions_tube.push_back(v[1]);
+				positions_tube.push_back(v[1]);//145
+				positions_tube.push_back(v[4]);
+				positions_tube.push_back(v[5]);
 
-				verts_tube.push_back(v[1]);//152
-				verts_tube.push_back(v[5]);
-				verts_tube.push_back(v[2]);
-				verts_tube.push_back(v[2]);//256
-				verts_tube.push_back(v[5]);
-				verts_tube.push_back(v[6]);
+				positions_tube.push_back(v[1]);//152
+				positions_tube.push_back(v[5]);
+				positions_tube.push_back(v[2]);
+				positions_tube.push_back(v[2]);//256
+				positions_tube.push_back(v[5]);
+				positions_tube.push_back(v[6]);
 
-				verts_tube.push_back(v[2]);//263
-				verts_tube.push_back(v[6]);
-				verts_tube.push_back(v[3]);
-				verts_tube.push_back(v[3]);//367
-				verts_tube.push_back(v[6]);
-				verts_tube.push_back(v[7]);
+				positions_tube.push_back(v[2]);//263
+				positions_tube.push_back(v[6]);
+				positions_tube.push_back(v[3]);
+				positions_tube.push_back(v[3]);//367
+				positions_tube.push_back(v[6]);
+				positions_tube.push_back(v[7]);
 
-				verts_tube.push_back(v[3]);//370
-				verts_tube.push_back(v[7]);
-				verts_tube.push_back(v[0]);
-				verts_tube.push_back(v[0]);//074
-				verts_tube.push_back(v[7]);
-				verts_tube.push_back(v[4]);
+				positions_tube.push_back(v[3]);//370
+				positions_tube.push_back(v[7]);
+				positions_tube.push_back(v[0]);
+				positions_tube.push_back(v[0]);//074
+				positions_tube.push_back(v[7]);
+				positions_tube.push_back(v[4]);
 
 				// add colors of triangles (rgb = normal)
 				glm::vec3 color;
@@ -626,6 +663,37 @@ void generateVertices()
 	}
 }
 
+void generateTextureData()
+{
+	glm::vec3 p[4]; // 4 vertices of ground plane
+	p[0] = glm::vec3(-d, h, d);
+	p[1] = glm::vec3(-d, h, -d);
+	p[2] = glm::vec3(d, h, -d);
+	p[3] = glm::vec3(d, h, d);
+
+	// fill in positions for plane 031,132
+	positions_plane.push_back(p[0]);
+	positions_plane.push_back(p[3]);
+	positions_plane.push_back(p[1]);
+	positions_plane.push_back(p[1]);
+	positions_plane.push_back(p[3]);
+	positions_plane.push_back(p[2]);
+
+	glm::vec2 tc[4];
+	tc[0] = glm::vec2(0.0f, 0.0f);
+	tc[1] = glm::vec2(0.0f, 1.0f);
+	tc[2] = glm::vec2(1.0f, 1.0f);
+	tc[3] = glm::vec2(1.0f, 0.0f);
+
+	// fill in texcoords for plane
+	texCoords.push_back(tc[0]);
+	texCoords.push_back(tc[3]);
+	texCoords.push_back(tc[1]);
+	texCoords.push_back(tc[1]);
+	texCoords.push_back(tc[3]);
+	texCoords.push_back(tc[2]);
+}
+
 void initScene(int argc, char* argv[])
 {
 	// background color
@@ -633,13 +701,31 @@ void initScene(int argc, char* argv[])
 
 	glEnable(GL_DEPTH_TEST);
 
-	// get program handle
+	// init pipeline program
 	pipelineProgram = new BasicPipelineProgram;
 	int ret = pipelineProgram->Init(shaderBasePath);
 	if (ret != 0) abort();
+	program = pipelineProgram->GetProgramHandle();
 
-	generateVertices();
-	initVBO();
+	// init texture pipeline program
+	texturePipelineProgram = new BasicPipelineProgram;
+	ret = texturePipelineProgram->BuildShadersFromFiles(shaderBasePath, "texture.vertexShader.glsl", "texture.fragmentShader.glsl");
+	if (ret != 0) abort();
+	textureProgram = texturePipelineProgram->GetProgramHandle();
+
+	// initialize texture
+	glGenTextures(1, &texHandle);
+	int code = initTexture("ground.jpg", texHandle);
+	if (code != 0)
+	{
+		printf("Error loading the texture image.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	generateRailData();
+	generateTextureData();
+	initRailVBO();
+	initTextureVBO();
 
 	std::cout << "GL error: " << glGetError() << std::endl;
 }

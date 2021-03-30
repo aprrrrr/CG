@@ -8,4 +8,3 @@ void main()
   // compute the final pixel color
   c = col;
 }
-
