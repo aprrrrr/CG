@@ -66,9 +66,9 @@ GLuint vao, vbo;
 
 glm::vec4 color_white(1, 1, 1, 1);
 std::vector<glm::vec4> colors_line;
-std::vector<glm::vec3> positions_line;
-std::vector<glm::vec3> tube_positions;
-std::vector<glm::vec4> tube_colors;
+std::vector<glm::vec3> verts_line;
+std::vector<glm::vec3> verts_tube;
+std::vector<glm::vec4> colors_tube;
 glm::mat4 basis;
 glm::mat3x4 control;
 
@@ -80,6 +80,8 @@ glm::vec3 eye(0.0f, 2.0f, 0.0f);
 glm::vec3 center(0.0f, 0.0f, 0.0f);
 glm::vec3 up(0.0f, 0.0f, 1.0f);
 int animationID = 0;
+
+float a = 5.0f;
 
 
 // write a screenshot to the specified filename
@@ -132,7 +134,7 @@ void displayFunc()
 
   // bind the VAO
   glBindVertexArray(vao);
-  glDrawArrays(GL_LINES, 0, positions_line.size());
+  glDrawArrays(GL_LINES, 0, verts_line.size());
 
   // unbind the VAO
   glBindVertexArray(0);
@@ -464,13 +466,13 @@ int initTexture(const char* imageFilename, GLuint textureHandle)
 void initVBO()
 {
 	// upload data for point mode
-	size_t positionSize = sizeof(glm::vec3) * positions_line.size();
+	size_t positionSize = sizeof(glm::vec3) * verts_line.size();
 	size_t colorSize = sizeof(glm::vec4) * colors_line.size();
 	glGenBuffers(1, &vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, positionSize + colorSize, nullptr,
 		GL_STATIC_DRAW);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions_line[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &verts_line[0]);
 	glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors_line[0]);
 
 	// bind vao for Point mode
@@ -496,7 +498,7 @@ void generateVertices()
 					s, -s, 0.0f, 0.0f );
 
 	Spline spline = splines[0];
-	glm::vec3 p0, p, b, n;
+	glm::vec3 p, b, n;
 	glm::vec3 v[8]; // 8 vertices of tube's cross section
 
 	for (int i = 0; i < spline.numControlPoints - 3; i++)
@@ -507,18 +509,18 @@ void generateVertices()
 
 		for (float u = 0.0f; u <= 1.0f; u += 0.001f)
 		{
-			// calculate position
-			glm::vec4 uVec(pow(u, 3), pow(u, 2), u, 1);
-			p0 = p;
-			p = uVec * basis * control;
-			positions.push_back(p);
-
-			if (positions_line.size() > 1)
+			// fill in vertices for line
+			if (verts_line.size() > 1)
 			{
-				positions_line.push_back(p0);
+				verts_line.push_back(p);
 				colors_line.push_back(color_white);
 			}
-			positions_line.push_back(p);
+
+			// calculate position
+			glm::vec4 uVec(pow(u, 3), pow(u, 2), u, 1);
+			p = uVec * basis * control;
+			positions.push_back(p);
+			verts_line.push_back(p);
 			colors_line.push_back(color_white);
 
 			// calculate tangent
@@ -549,10 +551,67 @@ void generateVertices()
 			}
 			normals.push_back(n);
 
-			// fill in positions and normals for tube
-			if (positions.empty()) continue;
+			// fill in vertices and normals for tube
+			if (positions.empty())
+			{
+				// calculate vertices around p0
+				v[0] = p + a * (-n + b);
+				v[1] = p + a * (n + b);
+				v[2] = p + a * (n - b);
+				v[3] = p + a * (-n - b);
+			}
+			else
+			{
+				// calculate vertices around p1
+				v[4] = p + a * (-n + b);
+				v[5] = p + a * (n + b);
+				v[6] = p + a * (n - b);
+				v[7] = p + a * (-n - b);
 
+				// add vertices and colors of triangles
+				// (0,4,1), (1,4,5), (1,5,2), (2,5,6), (2,6,3), (3,6,7), (3,7,0), (0,7,4)
+				verts_tube.push_back(v[0]);//041
+				verts_tube.push_back(v[4]);
+				verts_tube.push_back(v[1]);
+				verts_tube.push_back(v[1]);//145
+				verts_tube.push_back(v[4]);
+				verts_tube.push_back(v[5]);
+				colors_tube.push_back(glm::vec4(b, 1));
+				colors_tube.push_back(glm::vec4(b, 1));
 
+				verts_tube.push_back(v[1]);//152
+				verts_tube.push_back(v[5]);
+				verts_tube.push_back(v[2]);
+				verts_tube.push_back(v[2]);//256
+				verts_tube.push_back(v[5]);
+				verts_tube.push_back(v[6]);
+				colors_tube.push_back(glm::vec4(n, 1));
+				colors_tube.push_back(glm::vec4(n, 1));
+
+				verts_tube.push_back(v[2]);//263
+				verts_tube.push_back(v[6]);
+				verts_tube.push_back(v[3]);
+				verts_tube.push_back(v[3]);//367
+				verts_tube.push_back(v[6]);
+				verts_tube.push_back(v[7]);
+				colors_tube.push_back(glm::vec4(-b, 1));
+				colors_tube.push_back(glm::vec4(-b, 1));
+
+				verts_tube.push_back(v[3]);//370
+				verts_tube.push_back(v[7]);
+				verts_tube.push_back(v[0]);
+				verts_tube.push_back(v[0]);//074
+				verts_tube.push_back(v[7]);
+				verts_tube.push_back(v[4]);
+				colors_tube.push_back(glm::vec4(-n, 1));
+				colors_tube.push_back(glm::vec4(-n, 1));
+
+				// p0 = p1, copy v4-7 to v0-3
+				v[0] = v[4];
+				v[1] = v[5];
+				v[2] = v[6];
+				v[3] = v[7];
+			}
 		}
 	}
 }
