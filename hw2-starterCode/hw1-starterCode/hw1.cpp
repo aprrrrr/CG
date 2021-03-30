@@ -70,6 +70,15 @@ std::vector<glm::vec3> positions;
 glm::mat4 basis;
 glm::mat3x4 control;
 
+std::vector<glm::vec3> tangents;
+std::vector<glm::vec3> normals;
+std::vector<glm::vec3> cameraPos;
+
+glm::vec3 eye(0.0f, 2.0f, 0.0f);
+glm::vec3 center(0.0f, 0.0f, 0.0f);
+glm::vec3 up(0.0f, 0.0f, 1.0f);
+int animationID = 0;
+
 
 // write a screenshot to the specified filename
 void saveScreenshot(const char * filename)
@@ -93,7 +102,9 @@ void displayFunc()
 
   matrix.SetMatrixMode(OpenGLMatrix::ModelView);
   matrix.LoadIdentity();
-  matrix.LookAt(0, 2, 0, 0, 0, 0, 0, 0, 1);
+
+  // set camera
+  matrix.LookAt(eye.x, eye.y, eye.z, center.x, center.y, center.z, up.x, up.y, up.z);
  
   // Translate, Rotate, Scale
   matrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
@@ -129,7 +140,7 @@ void displayFunc()
 
 void idleFunc()
 {
-  // when user hits 'a', starts taking screenshots until there are 300 
+	// when user hits 'a', starts taking screenshots until there are 300 
 	if (startRecord && numScreenshots <= 300)
 	{
 		char fileName[5];
@@ -137,7 +148,14 @@ void idleFunc()
 		saveScreenshot(("animation/" + std::string(fileName) + ".jpg").c_str());
 		numScreenshots++;
 	}
-  glutPostRedisplay();
+
+	// animate the ride
+	eye = cameraPos[animationID];
+	center = tangents[animationID];
+	up = normals[animationID];
+	animationID++;
+
+	glutPostRedisplay();
 }
 
 void reshapeFunc(int w, int h)
@@ -481,6 +499,7 @@ void generateVertices()
 			spline.points[i].y, spline.points[i + 1].y, spline.points[i + 2].y, spline.points[i + 3].y,
 			spline.points[i].z, spline.points[i + 1].z,	spline.points[i + 2].z, spline.points[i + 3].z);
 
+		glm::vec3 t0, t1, b0, b1, n0, n1;
 		for (float u = 0.0f; u <= 1.0f; u += 0.001f)
 		{
 			glm::vec4 uVec(pow(u, 3), pow(u, 2), u, 1);
@@ -491,7 +510,43 @@ void generateVertices()
 				colors.push_back(color_white);
 			}
 			positions.push_back(p);
+			cameraPos.push_back(p);
 			colors.push_back(color_white);
+
+			// calculate tangent
+			// t(u) = p'(u) = [3u^2 2u 1 0] M C
+			glm::vec4 duVec(3 * pow(u, 2), 2 * u, 1, 0);
+			glm::vec3 t = duVec * basis * control;
+			t = glm::normalize(t);
+			tangents.push_back(t);
+
+			// calculate normal
+			if (normals.empty())
+			{
+				t0 = t1 = t;
+				// N0 = unit(T0 x V)
+				n0 = cross(t0, glm::vec3(0.0f, 0.0f, 1.0f));
+				n0 = glm::normalize(n0);
+				n1 = n0;
+				// B0 = unit(T0 x N0)
+				b0 = cross(t0, n0);
+				b0 = glm::normalize(b0);
+				b1 = b0;
+			}
+			else
+			{
+				t0 = t1;
+				t1 = t;
+				// N1 = unit(B0 x T1) 
+				n1 = cross(b0, t1);
+				n1 = glm::normalize(n1);
+				// B1 = unit(T1 x N1)
+				b1 = cross(t1 , n1);
+				b1 = glm::normalize(b1);
+				// update b0
+				b0 = b1;
+			}
+			normals.push_back(n1);
 		}
 	}
 
