@@ -81,7 +81,7 @@ glm::vec3 center(0.0f, 0.0f, 0.0f);
 glm::vec3 up(0.0f, 0.0f, 1.0f);
 int animationID = 0;
 
-float a = 5.0f;
+float a = 0.01f;
 
 
 // write a screenshot to the specified filename
@@ -134,7 +134,7 @@ void displayFunc()
 
   // bind the VAO
   glBindVertexArray(vao);
-  glDrawArrays(GL_LINES, 0, verts_line.size());
+  glDrawArrays(GL_TRIANGLES, 0, verts_tube.size());
 
   // unbind the VAO
   glBindVertexArray(0);
@@ -154,7 +154,7 @@ void idleFunc()
 	}
 
 	// animate the ride
-	eye = positions[animationID];
+	eye = positions[animationID] + glm::vec3(0.0f,1.0f,0.0f);
 	center = tangents[animationID];
 	up = normals[animationID];
 	animationID++;
@@ -466,14 +466,16 @@ int initTexture(const char* imageFilename, GLuint textureHandle)
 void initVBO()
 {
 	// upload data for point mode
-	size_t positionSize = sizeof(glm::vec3) * verts_line.size();
-	size_t colorSize = sizeof(glm::vec4) * colors_line.size();
+	size_t positionSize = sizeof(glm::vec3) * verts_tube.size();
+	//size_t positionSize = sizeof(glm::vec3) * verts_line.size();
+	size_t colorSize = sizeof(glm::vec4) * colors_tube.size();
+	//size_t colorSize = sizeof(glm::vec4) * colors_line.size();
 	glGenBuffers(1, &vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, positionSize + colorSize, nullptr,
 		GL_STATIC_DRAW);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &verts_line[0]);
-	glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors_line[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &verts_tube[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors_tube[0]);
 
 	// bind vao for Point mode
 	glGenVertexArrays(1, &vao);
@@ -519,7 +521,8 @@ void generateVertices()
 			// calculate position
 			glm::vec4 uVec(pow(u, 3), pow(u, 2), u, 1);
 			p = uVec * basis * control;
-			positions.push_back(p);
+
+			// fill in vertices and colors for line
 			verts_line.push_back(p);
 			colors_line.push_back(color_white);
 
@@ -551,7 +554,7 @@ void generateVertices()
 			}
 			normals.push_back(n);
 
-			// fill in vertices and normals for tube
+			// fill in vertices and colors for tube
 			if (positions.empty())
 			{
 				// calculate vertices around p0
@@ -568,7 +571,7 @@ void generateVertices()
 				v[6] = p + a * (n - b);
 				v[7] = p + a * (-n - b);
 
-				// add vertices and colors of triangles
+				// add vertices of triangles
 				// (0,4,1), (1,4,5), (1,5,2), (2,5,6), (2,6,3), (3,6,7), (3,7,0), (0,7,4)
 				verts_tube.push_back(v[0]);//041
 				verts_tube.push_back(v[4]);
@@ -576,8 +579,6 @@ void generateVertices()
 				verts_tube.push_back(v[1]);//145
 				verts_tube.push_back(v[4]);
 				verts_tube.push_back(v[5]);
-				colors_tube.push_back(glm::vec4(b, 1));
-				colors_tube.push_back(glm::vec4(b, 1));
 
 				verts_tube.push_back(v[1]);//152
 				verts_tube.push_back(v[5]);
@@ -585,8 +586,6 @@ void generateVertices()
 				verts_tube.push_back(v[2]);//256
 				verts_tube.push_back(v[5]);
 				verts_tube.push_back(v[6]);
-				colors_tube.push_back(glm::vec4(n, 1));
-				colors_tube.push_back(glm::vec4(n, 1));
 
 				verts_tube.push_back(v[2]);//263
 				verts_tube.push_back(v[6]);
@@ -594,8 +593,6 @@ void generateVertices()
 				verts_tube.push_back(v[3]);//367
 				verts_tube.push_back(v[6]);
 				verts_tube.push_back(v[7]);
-				colors_tube.push_back(glm::vec4(-b, 1));
-				colors_tube.push_back(glm::vec4(-b, 1));
 
 				verts_tube.push_back(v[3]);//370
 				verts_tube.push_back(v[7]);
@@ -603,8 +600,18 @@ void generateVertices()
 				verts_tube.push_back(v[0]);//074
 				verts_tube.push_back(v[7]);
 				verts_tube.push_back(v[4]);
-				colors_tube.push_back(glm::vec4(-n, 1));
-				colors_tube.push_back(glm::vec4(-n, 1));
+
+				// add colors of triangles (rgb = normal)
+				glm::vec3 color;
+				for (int i = 0; i < 4; i++)
+				{
+					if (i == 0) color = b;
+					else if (i == 1) color = n;
+					else if (i == 2) color = -b;
+					else color = -n;
+					for (int j = 0; j < 6; j++)
+						colors_tube.push_back(glm::vec4(color, 1));
+				}
 
 				// p0 = p1, copy v4-7 to v0-3
 				v[0] = v[4];
@@ -612,6 +619,9 @@ void generateVertices()
 				v[2] = v[6];
 				v[3] = v[7];
 			}
+
+			// fill in positions of each point
+			positions.push_back(p);
 		}
 	}
 }
