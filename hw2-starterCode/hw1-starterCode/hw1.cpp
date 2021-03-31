@@ -90,13 +90,14 @@ float h = -5.0f; // plane height (y-axis)
 GLuint texHandle;
 
 // lighting constants
+glm::vec3 lightDirection(0.0f, 1.0f, 0.0f);
 float La[4] = { 0.1f, 0.1f, 0.1f, 0.0f };
 float Ld[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
 float Ls[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
 float ka[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
 float kd[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
-float ks[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
-float alpha = 1.0f;
+float ks[4] = { 0.1f, 0.1f, 0.1f, 0.0f };
+float alpha = 10.0f;
 
 
 // write a screenshot to the specified filename
@@ -144,7 +145,6 @@ void displayFunc()
 
   // calculate viewLightDirection
   glm::mat4 view(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15]);
-  glm::vec3 lightDirection(0.0f, 1.0f, 0.0f); 
   glm::vec4 vLD = (view * glm::vec4(lightDirection, 0.0));
   float viewLightDirection[3] = { vLD.x, vLD.y, vLD.z };
 
@@ -198,8 +198,8 @@ void displayFunc()
 
 void idleFunc()
 {
-	// when user hits 'a', starts taking screenshots until there are 300 
-	if (startRecord && numScreenshots <= 300)
+	// when user hits 'a', starts taking screenshots until there are 1000 
+	if (startRecord && numScreenshots <= 1000)
 	{
 		char fileName[5];
 		sprintf(fileName, "%03d", numScreenshots);
@@ -583,11 +583,14 @@ void generateRailData()
 	glm::vec3 p, b, n;
 	glm::vec3 v[8]; // 8 vertices of tube's cross section
 
-	for (int i = 0; i < spline.numControlPoints - 3; i++)
+	for (int i = 0; i < spline.numControlPoints; i++)
 	{
-		control = glm::mat3x4(spline.points[i].x, spline.points[i + 1].x, spline.points[i + 2].x, spline.points[i + 3].x, 
-			spline.points[i].y, spline.points[i + 1].y, spline.points[i + 2].y, spline.points[i + 3].y,
-			spline.points[i].z, spline.points[i + 1].z,	spline.points[i + 2].z, spline.points[i + 3].z);
+		int second = (i + 1) % spline.numControlPoints;
+		int third = (i + 2) % spline.numControlPoints;
+		int fourth = (i + 3) % spline.numControlPoints;
+		control = glm::mat3x4(spline.points[i].x, spline.points[second].x, spline.points[third].x, spline.points[fourth].x, 
+			spline.points[i].y, spline.points[second].y, spline.points[third].y, spline.points[fourth].y,
+			spline.points[i].z, spline.points[second].z,	spline.points[third].z, spline.points[fourth].z);
 
 		for (float u = 0.0f; u <= 1.0f; u += 0.001f)
 		{
