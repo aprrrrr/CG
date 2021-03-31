@@ -29,10 +29,10 @@ void BasicPipelineProgram::SetProjectionMatrix(const float * m)
   glUniformMatrix4fv(h_projectionMatrix, 1, GL_FALSE, m);
 }
 
-void BasicPipelineProgram::SetRenderMode(int m)
+void BasicPipelineProgram::SetNormalMatrix(const float* m)
 {
-	// Pass "m" to the pipeline program, as the render mode.
-	glUniform1i(h_mode, m);
+	// Pass "m" to the pipeline program, as the normal matrix.
+	glUniformMatrix4fv(h_normalMatrix, 1, GL_FALSE, m);
 }
 
 int BasicPipelineProgram::SetShaderVariableHandles() 
@@ -40,7 +40,7 @@ int BasicPipelineProgram::SetShaderVariableHandles()
   // Set h_modelViewMatrix and h_projectionMatrix.
   SET_SHADER_VARIABLE_HANDLE(modelViewMatrix);
   SET_SHADER_VARIABLE_HANDLE(projectionMatrix);
-  SET_SHADER_VARIABLE_HANDLE(mode);
+  SET_SHADER_VARIABLE_HANDLE(normalMatrix);
   return 0;
 }
 

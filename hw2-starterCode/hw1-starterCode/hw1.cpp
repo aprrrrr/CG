@@ -67,12 +67,8 @@ bool startRecord = false;
 
 GLuint vaoRail, vboRail, vaoTex, vboTex;
 
-glm::vec4 color_white(1, 1, 1, 1);
-
-std::vector<glm::vec4> colors_line;
-std::vector<glm::vec3> positions_line;
 std::vector<glm::vec3> positions_tube;
-std::vector<glm::vec4> colors_tube;
+std::vector<glm::vec3> normals_tube;
 std::vector<glm::vec3> positions_plane;
 std::vector<glm::vec2> texCoords;
 
@@ -89,9 +85,18 @@ glm::vec3 up;
 int animationID = 0;
 
 float a = 0.02f; // track dimensions
-float d = 50.0f; // plane dimensions
+float d = 30.0f; // plane dimensions
 float h = -5.0f; // plane height (y-axis)
 GLuint texHandle;
+
+// lighting constants
+float La[4] = { 0.1f, 0.1f, 0.1f, 0.0f };
+float Ld[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
+float Ls[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
+float ka[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
+float kd[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
+float ks[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
+float alpha = 1.0f;
 
 
 // write a screenshot to the specified filename
@@ -127,19 +132,48 @@ void displayFunc()
   matrix.Rotate(landRotate[2], 0, 0, -1);
   matrix.Scale(landScale[0], landScale[1], landScale[2]);
 
+  // Get matrices
   float m[16];
   matrix.SetMatrixMode(OpenGLMatrix::ModelView);
   matrix.GetMatrix(m);
-
+  float n[16];
+  matrix.GetNormalMatrix(n);
   float p[16];
   matrix.SetMatrixMode(OpenGLMatrix::Projection);
   matrix.GetMatrix(p);
 
+  // calculate viewLightDirection
+  glm::mat4 view(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15]);
+  glm::vec3 lightDirection(0.0f, 1.0f, 0.0f); 
+  glm::vec4 vLD = (view * glm::vec4(lightDirection, 0.0));
+  float viewLightDirection[3] = { vLD.x, vLD.y, vLD.z };
+
   // bind shader
   pipelineProgram->Bind();
-  // set variable
+
+  // set variables
   pipelineProgram->SetModelViewMatrix(m);
+  pipelineProgram->SetNormalMatrix(n);
   pipelineProgram->SetProjectionMatrix(p);
+  GLint h_viewLightDirection = glGetUniformLocation(program, "viewLightDirection");
+  glUniform3fv(h_viewLightDirection, 1, viewLightDirection);
+
+
+  GLint h_La = glGetUniformLocation(program, "La");
+  glUniform4fv(h_La, 1, La);
+  GLint h_Ld = glGetUniformLocation(program, "Ld");
+  glUniform4fv(h_Ld, 1, Ld);
+  GLint h_Ls = glGetUniformLocation(program, "Ls");
+  glUniform4fv(h_Ls, 1, Ls);
+  GLint h_ka = glGetUniformLocation(program, "ka");
+  glUniform4fv(h_ka, 1, ka);
+  GLint h_kd = glGetUniformLocation(program, "kd");
+  glUniform4fv(h_kd, 1, kd);
+  GLint h_ks = glGetUniformLocation(program, "ks");
+  glUniform4fv(h_ks, 1, ks);
+  GLint h_alpha = glGetUniformLocation(program, "alpha");
+  glUniform1f(h_alpha, alpha);
+
   // bind the VAO
   glBindVertexArray(vaoRail);
   glDrawArrays(GL_TRIANGLES, 0, positions_tube.size());
@@ -488,15 +522,13 @@ void initRailVBO()
 {
 	// upload data for tube
 	size_t positionSize = sizeof(glm::vec3) * positions_tube.size();
-	//size_t positionSize = sizeof(glm::vec3) * verts_line.size();
-	size_t colorSize = sizeof(glm::vec4) * colors_tube.size();
-	//size_t colorSize = sizeof(glm::vec4) * colors_line.size();
+	size_t normalSize = sizeof(glm::vec3) * normals_tube.size();
 	glGenBuffers(1, &vboRail);
 	glBindBuffer(GL_ARRAY_BUFFER, vboRail);
-	glBufferData(GL_ARRAY_BUFFER, positionSize + colorSize, nullptr,
+	glBufferData(GL_ARRAY_BUFFER, positionSize + normalSize, nullptr,
 		GL_STATIC_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions_tube[0]);
-	glBufferSubData(GL_ARRAY_BUFFER, positionSize, colorSize, &colors_tube[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, positionSize, normalSize, &normals_tube[0]);
 
 	// bind vao for tube
 	glGenVertexArrays(1, &vaoRail);
@@ -507,9 +539,9 @@ void initRailVBO()
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 
-	loc = glGetAttribLocation(program, "color");
+	loc = glGetAttribLocation(program, "normal");
 	glEnableVertexAttribArray(loc);
-	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize);
 }
 
 void initTextureVBO()
@@ -638,17 +670,11 @@ void generateRailData()
 				positions_tube.push_back(v[7]);
 				positions_tube.push_back(v[4]);
 
-				// add colors of triangles (rgb = normal)
-				glm::vec3 color;
-				for (int i = 0; i < 4; i++)
-				{
-					if (i == 0) color = b;
-					else if (i == 1) color = n;
-					else if (i == 2) color = -b;
-					else color = -n;
-					for (int j = 0; j < 6; j++)
-						colors_tube.push_back(glm::vec4(color, 1));
-				}
+				// add normals of triangles
+				for (int i = 0; i < 6; i++) normals_tube.push_back(b);
+				for (int i = 0; i < 6; i++) normals_tube.push_back(n);
+				for (int i = 0; i < 6; i++) normals_tube.push_back(-b);
+				for (int i = 0; i < 6; i++) normals_tube.push_back(-n);
 
 				// p0 = p1, copy v4-7 to v0-3
 				v[0] = v[4];
@@ -661,6 +687,11 @@ void generateRailData()
 			positions.push_back(p);
 		}
 	}
+}
+
+void initLighting()
+{
+
 }
 
 void generateTextureData()
@@ -726,6 +757,7 @@ void initScene(int argc, char* argv[])
 	generateTextureData();
 	initRailVBO();
 	initTextureVBO();
+	initLighting();
 
 	std::cout << "GL error: " << glGetError() << std::endl;
 }
