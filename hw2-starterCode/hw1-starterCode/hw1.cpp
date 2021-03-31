@@ -65,12 +65,14 @@ int imageWidth, imageHeight;
 int numScreenshots = 0;
 bool startRecord = false;
 
-GLuint vaoRail, vboRail, vaoTex, vboTex;
+GLuint vaoRail, vboRail, vaoGround, vboGround, vaoSky, vboSky;
 
 std::vector<glm::vec3> positions_tube;
 std::vector<glm::vec3> normals_tube;
-std::vector<glm::vec3> positions_plane;
-std::vector<glm::vec2> texCoords;
+std::vector<glm::vec3> positions_ground;
+std::vector<glm::vec2> texCoords_ground; 
+std::vector<glm::vec3> positions_sky;
+std::vector<glm::vec2> texCoords_sky;
 
 glm::mat4 basis;
 glm::mat3x4 control;
@@ -84,10 +86,17 @@ glm::vec3 center;
 glm::vec3 up;
 int animationID = 0;
 
-float a = 0.02f; // track dimensions
-float d = 30.0f; // plane dimensions
-float h = -5.0f; // plane height (y-axis)
-GLuint texHandle;
+// rail parameters
+float a = 0.02f; // rail dimensions
+int speed = 3;
+
+// skybox dimensions
+float d = 30.0f; // 
+float bottom = -5.0f; // y-axis
+float top = 50.0f; // y-axis
+
+GLuint groundTexHandle;
+GLuint skyTexHandle;
 
 // lighting constants
 glm::vec3 lightDirection(0.0f, 1.0f, 0.0f);
@@ -185,13 +194,22 @@ void displayFunc()
   // set variable
   texturePipelineProgram->SetModelViewMatrix(m);
   texturePipelineProgram->SetProjectionMatrix(p);
-  // select texture to use
-  glBindTexture(GL_TEXTURE_2D, texHandle);
+  // select ground texture to use
+  glBindTexture(GL_TEXTURE_2D, groundTexHandle);
   // bind the VAO
-  glBindVertexArray(vaoTex);
-  glDrawArrays(GL_TRIANGLES, 0, positions_plane.size());
+  glBindVertexArray(vaoGround);
+  glDrawArrays(GL_TRIANGLES, 0, positions_ground.size());
   // unbind the VAO
   glBindVertexArray(0);
+
+  // select sky texture to use
+  glBindTexture(GL_TEXTURE_2D, skyTexHandle);
+  // bind the VAO
+  glBindVertexArray(vaoSky);
+  glDrawArrays(GL_TRIANGLES, 0, positions_sky.size());
+  // unbind the VAO
+  glBindVertexArray(0);
+
 
   glutSwapBuffers();
 }
@@ -212,7 +230,7 @@ void idleFunc()
 	eye = positions[animationID] + 0.1f * up;
 	center = tangents[animationID] + eye;
 
-	animationID++;
+	animationID += speed;
 	animationID %= positions.size();
 
 	glutPostRedisplay();
@@ -544,22 +562,22 @@ void initRailVBO()
 	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize);
 }
 
-void initTextureVBO()
+void initGroundTextureVBO()
 {
-	// upload data for texture
-	size_t positionSize = sizeof(glm::vec3) * positions_plane.size();
-	size_t texCoordSize = sizeof(glm::vec2) * texCoords.size();
-	glGenBuffers(1, &vboTex);
-	glBindBuffer(GL_ARRAY_BUFFER, vboTex);
+	// upload data for ground texture
+	size_t positionSize = sizeof(glm::vec3) * positions_ground.size();
+	size_t texCoordSize = sizeof(glm::vec2) * texCoords_ground.size();
+	glGenBuffers(1, &vboGround);
+	glBindBuffer(GL_ARRAY_BUFFER, vboGround);
 	glBufferData(GL_ARRAY_BUFFER, positionSize + texCoordSize, nullptr,
 		GL_STATIC_DRAW);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions_plane[0]);
-	glBufferSubData(GL_ARRAY_BUFFER, positionSize, texCoordSize, &texCoords[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions_ground[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, positionSize, texCoordSize, &texCoords_ground[0]);
 
-	// bind vao for texture
-	glGenVertexArrays(1, &vaoTex);
-	glBindVertexArray(vaoTex);
-	glBindBuffer(GL_ARRAY_BUFFER, vboTex);
+	// bind vao for ground texture
+	glGenVertexArrays(1, &vaoGround);
+	glBindVertexArray(vaoGround);
+	glBindBuffer(GL_ARRAY_BUFFER, vboGround);
 
 	GLuint loc = glGetAttribLocation(textureProgram, "position");
 	glEnableVertexAttribArray(loc);
@@ -568,7 +586,32 @@ void initTextureVBO()
 	loc = glGetAttribLocation(textureProgram, "texCoord");
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 2, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize);
+}
 
+void initSkyTextureVBO()
+{
+	// upload data for sky texture
+	size_t positionSize = sizeof(glm::vec3) * positions_sky.size();
+	size_t texCoordSize = sizeof(glm::vec2) * texCoords_sky.size();
+	glGenBuffers(1, &vboSky);
+	glBindBuffer(GL_ARRAY_BUFFER, vboSky);
+	glBufferData(GL_ARRAY_BUFFER, positionSize + texCoordSize, nullptr,
+		GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, positionSize, &positions_sky[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, positionSize, texCoordSize, &texCoords_sky[0]);
+
+	// bind vao for sky texture
+	glGenVertexArrays(1, &vaoSky);
+	glBindVertexArray(vaoSky);
+	glBindBuffer(GL_ARRAY_BUFFER, vboSky);
+
+	GLuint loc = glGetAttribLocation(textureProgram, "position");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+	loc = glGetAttribLocation(textureProgram, "texCoord");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 2, GL_FLOAT, GL_FALSE, 0, (const void*)positionSize);
 }
 
 void generateRailData()
@@ -692,26 +735,16 @@ void generateRailData()
 	}
 }
 
-void initLighting()
+void addPlane(vector<glm::vec3>* posVec, vector<glm::vec2>* tcVec, 
+	glm::vec3 p0, glm::vec3 p1, glm::vec3 p2, glm::vec3 p3)
 {
-
-}
-
-void generateTextureData()
-{
-	glm::vec3 p[4]; // 4 vertices of ground plane
-	p[0] = glm::vec3(-d, h, d);
-	p[1] = glm::vec3(-d, h, -d);
-	p[2] = glm::vec3(d, h, -d);
-	p[3] = glm::vec3(d, h, d);
-
 	// fill in positions for plane 031,132
-	positions_plane.push_back(p[0]);
-	positions_plane.push_back(p[3]);
-	positions_plane.push_back(p[1]);
-	positions_plane.push_back(p[1]);
-	positions_plane.push_back(p[3]);
-	positions_plane.push_back(p[2]);
+	posVec->push_back(p0);
+	posVec->push_back(p3);
+	posVec->push_back(p1);
+	posVec->push_back(p1);
+	posVec->push_back(p3);
+	posVec->push_back(p2);
 
 	glm::vec2 tc[4];
 	tc[0] = glm::vec2(0.0f, 0.0f);
@@ -720,12 +753,32 @@ void generateTextureData()
 	tc[3] = glm::vec2(1.0f, 0.0f);
 
 	// fill in texcoords for plane
-	texCoords.push_back(tc[0]);
-	texCoords.push_back(tc[3]);
-	texCoords.push_back(tc[1]);
-	texCoords.push_back(tc[1]);
-	texCoords.push_back(tc[3]);
-	texCoords.push_back(tc[2]);
+	tcVec->push_back(tc[0]);
+	tcVec->push_back(tc[3]);
+	tcVec->push_back(tc[1]);
+	tcVec->push_back(tc[1]);
+	tcVec->push_back(tc[3]);
+	tcVec->push_back(tc[2]);
+}
+
+void generateTextureData()
+{
+	glm::vec3 p[8]; // 8 vertices of the box
+	p[0] = glm::vec3(-d, bottom, d);
+	p[1] = glm::vec3(-d, bottom, -d);
+	p[2] = glm::vec3(d, bottom, -d);
+	p[3] = glm::vec3(d, bottom, d);
+	p[4] = glm::vec3(-d, top, d);
+	p[5] = glm::vec3(-d, top, -d);
+	p[6] = glm::vec3(d, top, -d);
+	p[7] = glm::vec3(d, top, d);
+	addPlane(&positions_ground, &texCoords_ground, p[0], p[1], p[2], p[3]);
+	addPlane(&positions_sky, &texCoords_sky, p[4], p[5], p[6], p[7]);
+	addPlane(&positions_sky, &texCoords_sky, p[3], p[7], p[6], p[2]);
+	addPlane(&positions_sky, &texCoords_sky, p[0], p[4], p[7], p[3]);
+	addPlane(&positions_sky, &texCoords_sky, p[0], p[4], p[5], p[1]);
+	addPlane(&positions_sky, &texCoords_sky, p[1], p[5], p[6], p[2]);
+
 }
 
 void initScene(int argc, char* argv[])
@@ -748,8 +801,15 @@ void initScene(int argc, char* argv[])
 	textureProgram = texturePipelineProgram->GetProgramHandle();
 
 	// initialize texture
-	glGenTextures(1, &texHandle);
-	int code = initTexture("ground.jpg", texHandle);
+	glGenTextures(1, &groundTexHandle);
+	int code = initTexture("ground.jpg", groundTexHandle);
+	if (code != 0)
+	{
+		printf("Error loading the texture image.\n");
+		exit(EXIT_FAILURE);
+	}
+	glGenTextures(1, &skyTexHandle);
+	code = initTexture("sky.jpg", skyTexHandle);
 	if (code != 0)
 	{
 		printf("Error loading the texture image.\n");
@@ -759,8 +819,8 @@ void initScene(int argc, char* argv[])
 	generateRailData();
 	generateTextureData();
 	initRailVBO();
-	initTextureVBO();
-	initLighting();
+	initGroundTextureVBO();
+	initSkyTextureVBO();
 
 	std::cout << "GL error: " << glGetError() << std::endl;
 }
