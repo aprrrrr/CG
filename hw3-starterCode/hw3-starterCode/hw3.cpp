@@ -25,6 +25,7 @@
 #endif
 
 #include <imageIO.h>
+#include <glm/glm.hpp>
 
 #define MAX_TRIANGLES 20000
 #define MAX_SPHERES 100
@@ -44,6 +45,8 @@ int mode = MODE_DISPLAY;
 
 //the field of view of the camera
 #define fov 60.0
+
+#define PI 3.1415926535
 
 unsigned char buffer[HEIGHT][WIDTH][3];
 
@@ -76,6 +79,12 @@ struct Light
   double color[3];
 };
 
+struct Ray
+{
+	glm::vec3 origin;
+	glm::vec3 direction;
+};
+
 Triangle triangles[MAX_TRIANGLES];
 Sphere spheres[MAX_SPHERES];
 Light lights[MAX_LIGHTS];
@@ -89,6 +98,22 @@ void plot_pixel_display(int x,int y,unsigned char r,unsigned char g,unsigned cha
 void plot_pixel_jpeg(int x,int y,unsigned char r,unsigned char g,unsigned char b);
 void plot_pixel(int x,int y,unsigned char r,unsigned char g,unsigned char b);
 
+Ray generateRayFromCamera(int x, int y)
+{
+	Ray ray;
+	glm::vec3 point;
+
+	double a = (double) WIDTH / HEIGHT;
+	double tanHalfFOV = tan((fov / 2) * PI / 180);
+
+	point.x = -a * tanHalfFOV + (2 * a * tanHalfFOV * ((double) x / WIDTH));
+	point.y = -tanHalfFOV + 2 * tanHalfFOV * ((double) y / HEIGHT);
+	point.z = -1;
+
+	ray.direction = glm::normalize(point);
+	return ray;
+}
+
 //MODIFY THIS FUNCTION
 void draw_scene()
 {
@@ -99,11 +124,23 @@ void draw_scene()
     glBegin(GL_POINTS);
     for(unsigned int y=0; y<HEIGHT; y++)
     {
+		// add ambient light to this pixel
+		double red, green, blue;
+		red = ambient_light[0];
+		green = ambient_light[1];
+		blue = ambient_light[2];
+
+		// generate ray through this pixel
+		Ray cameraRay = generateRayFromCamera(x, y);
+		//bool hit = colorComputedByRay(cameraRay, &rgbPhong, &P, &N, &objectHit, &objectIndex);
+
+
       plot_pixel(x, y, x % 256, y % 256, (x+y) % 256);
     }
     glEnd();
     glFlush();
   }
+	
   printf("Done!\n"); fflush(stdout);
 }
 
