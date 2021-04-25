@@ -46,9 +46,9 @@ int mode = MODE_DISPLAY;
 //the field of view of the camera
 #define fov 60.0
 
-#define PI 3.1415926535
-#define MIN_Z -1e20
-#define EPSILON 1e-15
+#define PI 3.1415926535f
+#define MIN_Z -1e20f
+#define EPSILON 1e-15f
 
 unsigned char buffer[HEIGHT][WIDTH][3];
 
@@ -163,7 +163,7 @@ bool pointInTriangle(glm::vec3& intersection, Triangle& triangle)
 	float beta = getTriangleArea(c0, intersection, c2) / area;
 	float gamma = getTriangleArea(intersection, c0, c1) / area;
 
-	return ((alpha + beta + gamma) >= (1.0 - EPSILON) && (alpha + beta + gamma) <= (1.0 + EPSILON));
+	return ((alpha + beta + gamma) >= (1.0f - EPSILON) && (alpha + beta + gamma) <= (1.0f + EPSILON));
 }
 
 bool intersectTriangle(Ray& ray, Triangle& triangle, glm::vec3& intersection)
@@ -300,8 +300,8 @@ glm::vec3 getPhongForSphere(Sphere& sphere, glm::vec3 intersection, Light& light
 	// compute L.N
 	float LdotN = glm::dot(l, normal);
 	// clamp
-	LdotN = glm::min(LdotN, 0.0f);
-	LdotN = glm::max(LdotN, 1.0f);
+	LdotN = glm::max(LdotN, 0.0f);
+	LdotN = glm::min(LdotN, 1.0f);
 
 	// compute the reflected ray
 	glm::vec3 r = 2 * LdotN * normal - l;
@@ -313,8 +313,8 @@ glm::vec3 getPhongForSphere(Sphere& sphere, glm::vec3 intersection, Light& light
 	// compute R.V
 	float RdotV = glm::dot(r, v);
 	// clamp
-	RdotV = glm::min(RdotV, 0.0f);
-	RdotV = glm::max(RdotV, 1.0f);
+	RdotV = glm::max(RdotV, 0.0f);
+	RdotV = glm::min(RdotV, 1.0f);
 
 	// calculate illumination
 	glm::vec3 color;
@@ -369,8 +369,8 @@ glm::vec3 getPhongForTriangle(Triangle& triangle, glm::vec3 intersection, Light&
 	// compute L.N
 	float LdotN = glm::dot(l, normal);
 	// clamp
-	LdotN = glm::min(LdotN, 0.0f);
-	LdotN = glm::max(LdotN, 1.0f);
+	LdotN = glm::max(LdotN, 0.0f);
+	LdotN = glm::min(LdotN, 1.0f);
 
 	// compute the reflected ray
 	glm::vec3 r = 2 * LdotN * normal - l;
@@ -382,8 +382,8 @@ glm::vec3 getPhongForTriangle(Triangle& triangle, glm::vec3 intersection, Light&
 	// compute R.V
 	float RdotV = glm::dot(r, v);
 	// clamp
-	RdotV = glm::min(RdotV, 0.0f);
-	RdotV = glm::max(RdotV, 1.0f);
+	RdotV = glm::max(RdotV, 0.0f);
+	RdotV = glm::min(RdotV, 1.0f);
 
 	// calculate illumination
 	glm::vec3 lightColor(light.color[0], light.color[1], light.color[2]);
@@ -438,7 +438,7 @@ void draw_scene()
 					{
 						pixelColor += getPhongForSphere(spheres[hitSphere], closestP, light);
 					}
-					else // hit triangle
+					else if (hitTriangle != -1)// hit triangle
 					{
 						pixelColor += getPhongForTriangle(triangles[hitTriangle], closestP, light);
 					}
@@ -452,10 +452,15 @@ void draw_scene()
 		pixelColor.b += ambient_light[2];
 
 		// scale rgb values
-		pixelColor *= 255;
+		pixelColor *= 255.0f;
+
+		//unsigned char r = (unsigned char)ceil(pixelColor.r);
+		//printf("r:%f\n", ceil(pixelColor.r)); fflush(stdout);
 
 		// plot pixel with clamped values
-		plot_pixel(x, y, glm::max(pixelColor.r, 255.0f), glm::max(pixelColor.g, 255.0f), glm::max(pixelColor.b, 255.0f));
+		plot_pixel(x, y, (unsigned char) glm::min(ceil(pixelColor.r), 255.0f), 
+			(unsigned char)glm::min(ceil(pixelColor.g), 255.0f),
+			(unsigned char)glm::min(ceil(pixelColor.b), 255.0f));
     }
     glEnd();
     glFlush();
