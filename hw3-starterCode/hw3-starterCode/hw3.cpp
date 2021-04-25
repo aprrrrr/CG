@@ -144,9 +144,11 @@ bool intersectSphere(Ray& ray, Sphere& sphere, glm::vec3& intersection)
 
 float getTriangleArea(glm::vec3 a, glm::vec3 b, glm::vec3 c)
 {
-	float val = glm::cross((b - a), (c - a)).length();
+	glm::vec3 cross = glm::cross((b - a), (c - a));
+	float val = glm::length(cross);
+	//printf("%f\n", val);
 	if (val >= 0)
-		return (0.5 * sqrt(val));
+		return (0.5 * val);
 	else
 		return 0.0f;
 }
@@ -163,7 +165,7 @@ bool pointInTriangle(glm::vec3& intersection, Triangle& triangle)
 	float beta = getTriangleArea(c0, intersection, c2) / area;
 	float gamma = getTriangleArea(intersection, c0, c1) / area;
 
-	return ((alpha + beta + gamma) >= (1.0f - EPSILON) && (alpha + beta + gamma) <= (1.0f + EPSILON));
+	return ((alpha + beta + gamma) >= (1.0f - EPSILON / 2.0f) && (alpha + beta + gamma) <= (1.0f + EPSILON / 2.0f));
 }
 
 bool intersectTriangle(Ray& ray, Triangle& triangle, glm::vec3& intersection)
@@ -194,6 +196,7 @@ bool intersectTriangle(Ray& ray, Triangle& triangle, glm::vec3& intersection)
 	else
 	{
 		intersection = ray.origin + ray.direction * t;
+		//printf("%d", (int)pointInTriangle(intersection, triangle));
 		return pointInTriangle(intersection, triangle);
 	}
 }
@@ -237,7 +240,7 @@ Ray generateShadowRay(glm::vec3& intersection, Light& light)
 	shadowRay.direction.x = light.position[0] - intersection.x;
 	shadowRay.direction.y = light.position[1] - intersection.y;
 	shadowRay.direction.z = light.position[2] - intersection.z;
-	normalize(shadowRay.direction);
+	shadowRay.direction = normalize(shadowRay.direction);
 	return shadowRay;
 }
 
@@ -257,7 +260,7 @@ bool isBlocked(Ray shadowRay, int sphereIndex, int triangleIndex, glm::vec3 inte
 			glm::vec3 toLight = lightPos - intersection;
 
 			// shadowRay is blocked if toBlock is shorter than toLight
-			if (toBlock.length() < toLight.length())
+			if (glm::length(toBlock) < glm::length(toLight))
 			{
 				return true;
 			}
@@ -276,7 +279,7 @@ bool isBlocked(Ray shadowRay, int sphereIndex, int triangleIndex, glm::vec3 inte
 			glm::vec3 toLight = lightPos - intersection;
 
 			// shadowRay is blocked if toBlock is shorter than toLight
-			if (toBlock.length() < toLight.length())
+			if (glm::length(toBlock) < glm::length(toLight))
 			{
 				return true;
 			}
@@ -289,13 +292,11 @@ glm::vec3 getPhongForSphere(Sphere& sphere, glm::vec3 intersection, Light& light
 {
 	// compute normal
 	glm::vec3 spherePos(sphere.position[0], sphere.position[1], sphere.position[2]);
-	glm::vec3 normal = intersection - spherePos;
-	normalize(normal);
+	glm::vec3 normal = normalize(intersection - spherePos);
 
 	// compute the light vector
 	glm::vec3 lightPos(light.position[0], light.position[1], light.position[2]);
-	glm::vec3 l = lightPos - intersection;
-	normalize(l);
+	glm::vec3 l = normalize(lightPos - intersection);
 
 	// compute L.N
 	float LdotN = glm::dot(l, normal);
@@ -305,7 +306,7 @@ glm::vec3 getPhongForSphere(Sphere& sphere, glm::vec3 intersection, Light& light
 
 	// compute the reflected ray
 	glm::vec3 r = 2 * LdotN * normal - l;
-	normalize(r);
+	r = normalize(r);
 
 	// compute v
 	glm::vec3 v = normalize(-intersection);
@@ -344,7 +345,7 @@ glm::vec3 getPhongForTriangle(Triangle& triangle, glm::vec3 intersection, Light&
 	normal.x = (alpha * triangle.v[0].normal[0]) + (beta * triangle.v[1].normal[0]) + (gamma * triangle.v[2].normal[0]);
 	normal.y = (alpha * triangle.v[0].normal[1]) + (beta * triangle.v[1].normal[1]) + (gamma * triangle.v[2].normal[1]);
 	normal.z = (alpha * triangle.v[0].normal[2]) + (beta * triangle.v[1].normal[2]) + (gamma * triangle.v[2].normal[2]);
-	normalize(normal);
+	normal = normalize(normal);
 
 	// interpolate diffuse
 	glm::vec3 diffuse;
@@ -364,7 +365,7 @@ glm::vec3 getPhongForTriangle(Triangle& triangle, glm::vec3 intersection, Light&
 	// compute the light vector
 	glm::vec3 lightPos(light.position[0], light.position[1], light.position[2]);
 	glm::vec3 l = lightPos - intersection;
-	normalize(l);
+	l = normalize(l);
 
 	// compute L.N
 	float LdotN = glm::dot(l, normal);
@@ -374,7 +375,7 @@ glm::vec3 getPhongForTriangle(Triangle& triangle, glm::vec3 intersection, Light&
 
 	// compute the reflected ray
 	glm::vec3 r = 2 * LdotN * normal - l;
-	normalize(r);
+	r = normalize(r);
 
 	// compute v
 	glm::vec3 v = normalize(-intersection);
