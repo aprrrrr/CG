@@ -48,7 +48,7 @@ int mode = MODE_DISPLAY;
 
 #define PI 3.1415926535f
 #define MIN_Z -1e20f
-#define EPSILON 1e-15f
+#define EPSILON 1e-5f
 
 unsigned char buffer[HEIGHT][WIDTH][3];
 
@@ -142,15 +142,14 @@ bool intersectSphere(Ray& ray, Sphere& sphere, glm::vec3& intersection)
 	return false;
 }
 
-float getTriangleArea(glm::vec3 a, glm::vec3 b, glm::vec3 c)
+double getTriangleArea(glm::vec3 a, glm::vec3 b, glm::vec3 c)
 {
 	glm::vec3 cross = glm::cross((b - a), (c - a));
 	float val = glm::length(cross);
-	//printf("%f\n", val);
 	if (val >= 0)
 		return (0.5 * val);
 	else
-		return 0.0f;
+		return 0.0;
 }
 
 bool pointInTriangle(glm::vec3& intersection, Triangle& triangle)
@@ -160,12 +159,12 @@ bool pointInTriangle(glm::vec3& intersection, Triangle& triangle)
 	glm::vec3 c2(triangle.v[2].position[0], triangle.v[2].position[1], triangle.v[2].position[2]);
 	
 	//calculate the barycentric co efficients
-	float area = getTriangleArea(c0, c1, c2);
-	float alpha = getTriangleArea(intersection, c1, c2) / area;
-	float beta = getTriangleArea(c0, intersection, c2) / area;
-	float gamma = getTriangleArea(intersection, c0, c1) / area;
+	double area = getTriangleArea(c0, c1, c2);
+	double alpha = getTriangleArea(intersection, c1, c2) / area;
+	double beta = getTriangleArea(c0, intersection, c2) / area;
+	double gamma = getTriangleArea(intersection, c0, c1) / area;
 
-	return ((alpha + beta + gamma) >= (1.0f - EPSILON / 2.0f) && (alpha + beta + gamma) <= (1.0f + EPSILON / 2.0f));
+	return ((alpha + beta + gamma) >= (1.0 - EPSILON / 2.0) && (alpha + beta + gamma) <= (1.0 + EPSILON / 2.0));
 }
 
 bool intersectTriangle(Ray& ray, Triangle& triangle, glm::vec3& intersection)
@@ -177,26 +176,23 @@ bool intersectTriangle(Ray& ray, Triangle& triangle, glm::vec3& intersection)
 	glm::vec3 normal = normalize(cross(b-a, c-a));
 
 	float NdotD = dot(normal, ray.direction);
-	if (abs(NdotD) < EPSILON) //no intersection
+	if (abs(NdotD) < EPSILON) // no intersection
 	{
 		return false;
 	}
 
-	// compute d
-	float d;
-	// ax+by+cz+d=0
-	d = - dot(normal, a);
+	// compute d: ax + by + cz + d=0
+	float d = - dot(normal, a);
 
 	float NdotP = dot(normal, ray.origin);
-	float t = (-(NdotP + d)) / NdotD;
-	if (t < 0) //intersection behind origin
+	double t = (-(NdotP + d)) / NdotD;
+	if (t < 0) // intersection behind origin
 	{
 		return false;
 	}
 	else
 	{
-		intersection = ray.origin + ray.direction * t;
-		//printf("%d", (int)pointInTriangle(intersection, triangle));
+		intersection = ray.origin + ray.direction * (float)t;
 		return pointInTriangle(intersection, triangle);
 	}
 }
@@ -393,8 +389,6 @@ glm::vec3 getPhongForTriangle(Triangle& triangle, glm::vec3 intersection, Light&
 	return color;
 }
 
-
-//MODIFY THIS FUNCTION
 void draw_scene()
 {
   for (unsigned int x = 0; x < WIDTH; x++)
@@ -439,7 +433,7 @@ void draw_scene()
 					{
 						pixelColor += getPhongForSphere(spheres[hitSphere], closestP, light);
 					}
-					else if (hitTriangle != -1)// hit triangle
+					else if (hitTriangle != -1) // hit triangle
 					{
 						pixelColor += getPhongForTriangle(triangles[hitTriangle], closestP, light);
 					}
@@ -454,9 +448,6 @@ void draw_scene()
 
 		// scale rgb values
 		pixelColor *= 255.0f;
-
-		//unsigned char r = (unsigned char)ceil(pixelColor.r);
-		//printf("r:%f\n", ceil(pixelColor.r)); fflush(stdout);
 
 		// plot pixel with clamped values
 		plot_pixel(x, y, (unsigned char) glm::min(ceil(pixelColor.r), 255.0f), 
